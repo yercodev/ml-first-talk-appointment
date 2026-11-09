@@ -37,6 +37,13 @@ function assertPostgrestError(data: any) {
   expect(Object.keys(data).every((k) => ['code', 'message', 'details', 'hint'].includes(k))).toBe(true);
 }
 
+/** El DETAIL del RAISE: objeto con `status` (numero) y `headers` (objeto), claves obligatorias para PostgREST. */
+function assertPostgrestDetail(d: any) {
+  expect(typeof d.status).toBe('number');
+  expect(typeof d.headers).toBe('object');
+  expect(d.headers).not.toBeNull();
+}
+
 /** Llama a public.<fn>(nombre => valor, ...). Los RAISE de la API se convierten en { ok:false, status, data:{code,...} }. */
 async function rpc(fn: string, args: Record<string, unknown> = {}, d: Db = db): Promise<Res> {
   const keys = Object.keys(args);
@@ -52,6 +59,7 @@ async function rpc(fn: string, args: Record<string, unknown> = {}, d: Db = db): 
     if (e.code === 'PGRST') {
       const data = JSON.parse(e.message);
       assertPostgrestError(data);
+      assertPostgrestDetail(JSON.parse(e.detail));
       if (typeof data.details === 'string') data.details = JSON.parse(data.details); // el front hace lo mismo
       return { ok: false, status: JSON.parse(e.detail).status, data };
     }
@@ -690,7 +698,7 @@ describe('contrato de errores con PostgREST (incidente de staging: details como 
       expect(err.code).toBe('PGRST');
       const data = JSON.parse(err.message);
       assertPostgrestError(data);
-      expect(JSON.parse(err.detail)).toEqual({ status: 422 });
+      expect(JSON.parse(err.detail)).toEqual({ status: 422, headers: {} });
       if (details) expect(JSON.parse(data.details)).toEqual(JSON.parse(details));
       else expect('details' in data).toBe(false);
     }

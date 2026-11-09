@@ -5,6 +5,8 @@
 -- Arregla: `mountain_lords.fail()` metia `details` como OBJETO json y PostgREST exige que `details` y
 -- `hint` sean TEXTO, asi que cada error de la API (400/409/422/429) acababa en 500 PGRST121.
 -- Ahora `details` va como JSON serializado en texto (el front lo parsea) y no hay `hint`.
+-- Y el DETAIL del RAISE tiene que ser un objeto con las claves obligatorias `status` y `headers` (PostgREST: PGRST121
+-- «DETAIL must be a JSON object with obligatory keys: 'status', 'headers'»); faltaba `headers`.
 -- Anade ml_admin_purge_test: borra las reservas de prueba (usuario con prefijo `zz.smoke.`) con sus avisos.
 -- ============================================================================
 
@@ -13,7 +15,7 @@ language plpgsql set search_path = '' as $$
 begin
   raise sqlstate 'PGRST' using
     message = jsonb_strip_nulls(jsonb_build_object('code', p_code, 'message', p_message, 'details', p_details::text))::text,
-    detail = jsonb_build_object('status', p_status)::text;
+    detail = jsonb_build_object('status', p_status, 'headers', '{}'::jsonb)::text;
 end $$;
 
 -- Borra las reservas de PRUEBA (discord_username que empieza por `zz.smoke.`). Los avisos caen en cascada y el
