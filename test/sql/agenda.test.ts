@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { MIGRATION, setup, type Db, type Harness } from './db';
+import { validateForm } from '../../site/lib/validate.js';
 
 const ADMIN_KEY = 'clave-admin-de-prueba';
 const MIN = 60_000;
@@ -24,6 +25,18 @@ interface Res {
   data: any;
 }
 
+/**
+ * Contrato con PostgREST: el MESSAGE de un RAISE SQLSTATE 'PGRST' tiene que ser un objeto con `code` y `message`
+ * (texto) y, opcionalmente, `details` y `hint` como TEXTO. Con un objeto en `details`, PostgREST responde 500 PGRST121.
+ * Se comprueba en TODOS los errores que producen las pruebas.
+ */
+function assertPostgrestError(data: any) {
+  expect(typeof data.code).toBe('string');
+  expect(typeof data.message).toBe('string');
+  for (const k of ['details', 'hint']) if (k in data) expect(typeof data[k]).toBe('string');
+  expect(Object.keys(data).every((k) => ['code', 'message', 'details', 'hint'].includes(k))).toBe(true);
+}
+
 /** Llama a public.<fn>(nombre => valor, ...). Los RAISE de la API se convierten en { ok:false, status, data:{code,...} }. */
 async function rpc(fn: string, args: Record<string, unknown> = {}, d: Db = db): Promise<Res> {
   const keys = Object.keys(args);
@@ -36,7 +49,12 @@ async function rpc(fn: string, args: Record<string, unknown> = {}, d: Db = db): 
     const data = rows[0].r;
     return { ok: !(data && data.code), status: data && data.code ? -1 : 200, data };
   } catch (e: any) {
-    if (e.code === 'PGRST') return { ok: false, status: JSON.parse(e.detail).status, data: JSON.parse(e.message) };
+    if (e.code === 'PGRST') {
+      const data = JSON.parse(e.message);
+      assertPostgrestError(data);
+      if (typeof data.details === 'string') data.details = JSON.parse(data.details); // el front hace lo mismo
+      return { ok: false, status: JSON.parse(e.detail).status, data };
+    }
     throw e;
   }
 }
@@ -660,6 +678,107 @@ describe('textos y version del aviso (marketing ML-001)', () => {
   });
 });
 
+describe('contrato de errores con PostgREST (incidente de staging: details como objeto -> 500 PGRST121)', () => {
+  it('fail() produce un MESSAGE valido: code y message en texto, details y hint solo como texto', async () => {
+    for (const details of [null, JSON.stringify({ reason: 'outside_schedule' }), JSON.stringify({ discordUsername: 'x', displayName: 'y' })]) {
+      let err: any;
+      try {
+        await q(`select mountain_lords.fail(422, 'slot_not_bookable', 'Texto', $1::jsonb)`, [details]);
+      } catch (e) {
+        err = e;
+      }
+      expect(err.code).toBe('PGRST');
+      const data = JSON.parse(err.message);
+      assertPostgrestError(data);
+      expect(JSON.parse(err.detail)).toEqual({ status: 422 });
+      if (details) expect(JSON.parse(data.details)).toEqual(JSON.parse(details));
+      else expect('details' in data).toBe(false);
+    }
+  });
+
+  it('los errores reales de la API traen details como texto JSON con sus campos', async () => {
+    const v = await book(slot(1), 'user_ok', { p_display_name: '', p_riot_id: 'sin tag' });
+    expect(v.status).toBe(400);
+    expect(Object.keys(v.data.details).sort()).toEqual(['displayName', 'riotId']);
+    const off = await book(slot(1) + '', 'user_ok'); // cupo valido; ahora fuera de la rejilla:
+    expect(off.ok).toBe(true);
+    const bad = await book(new Date(slotMs(2) + 60_000).toISOString(), 'otro_user');
+    expect(bad.status).toBe(422);
+    expect(bad.data.details.reason).toBe('outside_schedule');
+  });
+});
+
+describe('el formulario del front valida lo mismo que el servidor', () => {
+  const base = { discordUsername: 'lord.aim', displayName: 'Lord Aim', riotId: '', mainRole: '', message: '', privacyAccepted: true };
+  const cases: Array<Partial<typeof base>> = [
+    {},
+    { discordUsername: '  @Lord.Aim ' },
+    { discordUsername: 'Lord Aim' },
+    { discordUsername: 'l' },
+    { discordUsername: 'x'.repeat(32) },
+    { discordUsername: 'x'.repeat(33) },
+    { discordUsername: 'lord..aim' },
+    { discordUsername: 'lord-aim' },
+    { discordUsername: 'lordaim#1234' },
+    { discordUsername: '' },
+    { displayName: '' },
+    { displayName: 'a' },
+    { displayName: 'x'.repeat(32) },
+    { displayName: 'x'.repeat(33) },
+    { displayName: '  Lord  ' },
+    { riotId: 'LordAim#LAT' },
+    { riotId: 'Mr Lord#1234' },
+    { riotId: 'LordAim' },
+    { riotId: 'ab#123' },
+    { riotId: 'abc#12' },
+    { riotId: 'x'.repeat(16) + '#12345' },
+    { riotId: 'x'.repeat(17) + '#12345' },
+    { mainRole: 'Duelista' },
+    { mainRole: 'sniper' },
+    { message: 'x'.repeat(300) },
+    { message: 'x'.repeat(301) },
+    { message: '  ' + 'x'.repeat(300) + '  ' },
+    { privacyAccepted: false },
+  ];
+  it.each(cases.map((c, i) => [i, c] as const))('caso %i', async (i, c) => {
+    const v = { ...base, ...c };
+    const client = Object.keys(validateForm(v)).sort();
+    const r = await book(slot(1 + (i % 12), i % 9), v.discordUsername, {
+      p_display_name: v.displayName,
+      p_riot_id: v.riotId,
+      p_main_role: v.mainRole,
+      p_message: v.message,
+      p_privacy_accepted: v.privacyAccepted,
+    });
+    const server = r.ok ? [] : r.status === 400 ? Object.keys(r.data.details).sort() : ['(otro error ' + r.status + ')'];
+    expect(client).toEqual(server);
+    if (r.ok) await rpc('ml_booking_cancel', { p_token: r.data.manageToken });
+  });
+});
+
+describe('purga de reservas de prueba (zz.smoke.)', () => {
+  it('borra solo las del prefijo reservado, con sus avisos, y exige la clave', async () => {
+    await book(slot(1), 'zz.smoke.abc');
+    await book(slot(2), 'zz.smoke.def');
+    await book(slot(3), 'usuario_real');
+    expect((await rpc('ml_admin_purge_test', { p_key: 'mala' })).data.code).toBe('unauthorized');
+    expect(await q(`select 1 from mountain_lords.booking`)).toHaveLength(3);
+    expect((await rpc('ml_admin_purge_test', { p_key: ADMIN_KEY })).data).toEqual({ purged: 2 });
+    expect((await q(`select discord_username from mountain_lords.booking`)).map((r: any) => r.discord_username)).toEqual(['usuario_real']);
+    expect(await q(`select 1 from mountain_lords.notification n join mountain_lords.booking b on b.id = n.booking_id where b.discord_username like 'zz.smoke.%'`)).toHaveLength(0);
+    expect((await q(`select count(*)::int as n from mountain_lords.notification`))[0].n).toBe(1); // solo el aviso de la reserva real
+    expect((await rpc('ml_admin_purge_test', { p_key: ADMIN_KEY })).data).toEqual({ purged: 0 });
+  });
+
+  it('el limite por IP no cuenta las reservas purgadas', async () => {
+    await setIp('203.0.113.50');
+    for (let i = 0; i < 3; i++) await book(slot(1, i), `zz.smoke.t${i}`);
+    expect((await book(slot(1, 5), 'zz.smoke.t9')).status).toBe(429);
+    await rpc('ml_admin_purge_test', { p_key: ADMIN_KEY });
+    expect((await book(slot(1, 5), 'zz.smoke.t9')).ok).toBe(true);
+  });
+});
+
 describe('escenarios 19, 20 y 21: administracion', () => {
   it('19: bloquear/desbloquear un cupo y un dia; un cupo reservado no se bloquea; un dia con reservas bloquea solo los libres', async () => {
     const b = await rpc('ml_admin_block', { p_key: ADMIN_KEY, p_date: '2026-11-19' });
@@ -828,7 +947,7 @@ describe('escenarios 27 y 28: permisos', () => {
       });
     }
     const pub = await q(`select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname like 'ml\\_%'`);
-    expect(pub).toHaveLength(10);
+    expect(pub).toHaveLength(11);
   });
 
   it('28: con allow_fake_now = false un fake_now puesto no cambia la hora de nada', async () => {

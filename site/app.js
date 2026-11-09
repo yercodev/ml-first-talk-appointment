@@ -1,5 +1,6 @@
 import { rpc, isConfigured } from './lib/api.js';
 import * as fmt from './lib/format.js';
+import { validateForm } from './lib/validate.js';
 
 const $ = (id) => document.getElementById(id);
 const state = { data: null, day: null, slot: null, offset: -300 };
@@ -147,6 +148,16 @@ async function submitBooking(ev) {
   ev.preventDefault();
   clearErrors();
   if (!state.slot) return formError('Elige primero un horario.');
+  const values = {
+    discordUsername: $('discordUsername').value,
+    displayName: $('displayName').value,
+    riotId: $('riotId').value,
+    mainRole: $('mainRole').value,
+    message: $('message').value,
+    privacyAccepted: $('privacyAccepted').checked,
+  };
+  const problems = validateForm(values);
+  if (Object.keys(problems).length) return showFieldErrors(problems); // el servidor valida igual: esto solo ahorra el viaje
   const btn = $('submit');
   btn.disabled = true;
   btn.textContent = 'Reservando…';

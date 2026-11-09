@@ -9,6 +9,22 @@ export function isConfigured() {
   return !!supabaseUrl && !!anonKey && !anonKey.startsWith('PEGAR_');
 }
 
+/**
+ * PostgREST obliga a que `details` de un error sea TEXTO: la API lo manda como JSON serializado
+ * ({"discordUsername":"…"}). Se acepta esa forma y la de objeto (los errores con response.status).
+ */
+export function normalizeError(data) {
+  if (data && typeof data === 'object' && typeof data.details === 'string') {
+    try {
+      const parsed = JSON.parse(data.details);
+      if (parsed && typeof parsed === 'object') return { ...data, details: parsed };
+    } catch {
+      /* texto normal: se deja tal cual */
+    }
+  }
+  return data;
+}
+
 /** Llama a public.<name>(args). Devuelve { ok, status, data }; nunca lanza por errores de red (status 0). */
 export async function rpc(name, args = {}) {
   const { supabaseUrl, anonKey } = config();
@@ -23,7 +39,7 @@ export async function rpc(name, args = {}) {
       body: JSON.stringify(args),
     });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
+    return { ok: res.ok, status: res.status, data: normalizeError(data) };
   } catch {
     return { ok: false, status: 0, data: {} };
   }

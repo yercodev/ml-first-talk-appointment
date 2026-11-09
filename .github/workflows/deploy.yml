@@ -19,9 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     # Un contenedor postgres:16 con los roles de Supabase simulados (anon, authenticated, service_role y el
     # esquema `extensions` con pgcrypto) en vez de `supabase start`: arranca en segundos, no necesita bajar ~12
-    # imagenes de Docker y prueba exactamente lo mismo (SQL, privilegios, concurrencia). Lo unico que no cubre es
-    # la capa PostgREST (la traduccion de RAISE SQLSTATE 'PGRST' a un codigo HTTP), que se comprueba en la
-    # prueba de humo contra staging.
+    # imagenes de Docker y prueba lo mismo (SQL, privilegios, concurrencia). La capa PostgREST (RAISE SQLSTATE 'PGRST'
+    # -> codigo HTTP) se prueba con un contenedor postgrest/postgrest real contra ese mismo postgres (test/http).
     services:
       postgres:
         image: postgres:16
@@ -49,6 +48,24 @@ jobs:
         run: npm test
       - name: Ninguna clave service_role en el sitio
         run: node scripts/check-no-service-key.mjs site
+      - name: Arrancar PostgREST real contra el postgres del job
+        # La base ya tiene las migraciones (las aplicaron los tests de SQL). PostgREST arranca DESPUES para ver el esquema.
+        run: |
+          docker run -d --name postgrest --network host             -e PGRST_DB_URI="postgres://postgres:postgres@127.0.0.1:5432/postgres"             -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon -e PGRST_SERVER_PORT=3000             postgrest/postgrest:v12.2.3
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/ > /dev/null 2>&1; then echo "PostgREST listo"; exit 0; fi
+            sleep 2
+          done
+          docker logs postgrest
+          echo "::error::PostgREST no arranco"
+          exit 1
+      - name: Tests HTTP contra PostgREST (codigos de estado y contrato de errores)
+        env:
+          POSTGREST_URL: http://127.0.0.1:3000
+        run: npx vitest run test/http
+      - name: Logs de PostgREST si fallo algo
+        if: failure()
+        run: docker logs postgrest || true
 
   build:
     needs: check
