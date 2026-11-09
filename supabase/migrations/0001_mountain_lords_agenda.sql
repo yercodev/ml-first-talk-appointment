@@ -221,8 +221,9 @@ create or replace function mountain_lords.fail(p_status int, p_code text, p_mess
 language plpgsql set search_path = '' as $$
 begin
   raise sqlstate 'PGRST' using
-    message = jsonb_build_object('code', p_code, 'message', p_message, 'details', p_details, 'hint', null)::text,
-    detail = jsonb_build_object('status', p_status)::text;
+    -- PostgREST exige que `details` y `hint` sean TEXTO (o que no esten): details va como JSON serializado.
+    message = jsonb_strip_nulls(jsonb_build_object('code', p_code, 'message', p_message, 'details', p_details::text))::text,
+    detail = jsonb_build_object('status', p_status, 'headers', '{}'::jsonb)::text;
 end $$;
 
 -- Error que DEJA RASTRO: responde con response.status y el cuerpo, sin RAISE.

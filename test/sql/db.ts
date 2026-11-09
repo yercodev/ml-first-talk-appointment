@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
-export const MIGRATION = readFileSync(join(here, '../../supabase/migrations/0001_mountain_lords_agenda.sql'), 'utf8');
+// 0001 + 0002 (en orden). Se aplican siempre juntas, como las pega Yerco.
+export const MIGRATION = ['0001_mountain_lords_agenda.sql', '0002_pgrst_error_format.sql']
+  .map((f) => readFileSync(join(here, '../../supabase/migrations', f), 'utf8'))
+  .join(';\n');
 
 export interface Db {
   query<T = any>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -37,6 +40,7 @@ drop function if exists public.ml_admin_block(text, timestamptz, date);
 drop function if exists public.ml_admin_unblock(text, timestamptz, date);
 drop function if exists public.ml_integration_pending(boolean);
 drop function if exists public.ml_integration_ack(jsonb);
+drop function if exists public.ml_admin_purge_test(text);
 `;
 
 export interface Harness {

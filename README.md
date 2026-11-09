@@ -67,7 +67,7 @@ Los tests de SQL cubren los escenarios de la HU. Con `TEST_DATABASE_URL=postgres
 ## Puesta en marcha (lo hace Yerco)
 
 1. **Base de datos de staging** (`dojgxfotawtxitgcppyn`), en el SQL Editor y en este orden:
-   1. el contenido de `supabase/migrations/0001_mountain_lords_agenda.sql` (se puede ejecutar dos veces);
+   1. el contenido de `supabase/migrations/0001_mountain_lords_agenda.sql` y después el de `0002_pgrst_error_format.sql` (las dos se pueden ejecutar más de una vez; la 0002 arregla el formato de los errores para PostgREST y añade la purga de reservas de prueba);
    2. el hash de la clave de administrador: `ai-agents/developer/ml-first-talk/staging-config.sql` (la clave real está en `pagina/.ml-first-talk.env`, fuera del repo). Para generarlo otra vez: `node scripts/hash-admin-key.mjs <archivo.env>`.
    - No añadas `mountain_lords` a «Exposed schemas» de la API.
 2. **Clave anon de staging** (pública): en GitHub, *Settings → Secrets and variables → Actions → Variables*, crea `ML_ANON_KEY`. El workflow la inyecta en `config.js` al publicar. (Alternativa: sustituir `PEGAR_ANON_KEY_STAGING` en `site/config.js`.)
@@ -77,7 +77,7 @@ Los tests de SQL cubren los escenarios de la HU. Con `TEST_DATABASE_URL=postgres
    - crea una credencial *Supabase API* con la URL de staging y la clave **legacy `service_role`** (no la `sb_secret_`, que falla a ratos con «JWT issued at future») y asígnala a los nodos *Pendiente*, *Ack (dry run)*, *Ack 1* y *Ack 2*;
    - ejecuta una vez en modo manual con `DRY_RUN = true` y revisa el plan del último nodo;
    - cuando lo apruebes, pon `DRY_RUN = false` y **publica** el workflow.
-6. Prueba de humo contra staging: `ML_ANON_KEY=… ML_ADMIN_KEY=… node scripts/smoke.mjs`.
+6. Prueba de humo contra staging: `ML_ANON_KEY=… ML_ADMIN_KEY=… node scripts/smoke.mjs`. Staging es la base real: el humo usa usuarios `zz.smoke.*` en el último cupo del día más lejano y los borra siempre al terminar (`ml_admin_purge_test`); sin `ML_ADMIN_KEY` no crea ninguna reserva.
 
 ## CI/CD
 
