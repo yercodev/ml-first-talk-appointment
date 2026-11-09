@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Agenda · Panel · Mountain Lords</title>
+  <meta name="theme-color" content="#0F1E3A">
+  <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <section class="step login" id="login">
+      <h1 class="big">Panel de agenda</h1>
+      <form id="login-form" autocomplete="off">
+        <div class="field login-field">
+          <label for="key">Clave de administrador</label>
+          <input id="key" type="password" autocomplete="current-password" required>
+          <p class="err" id="login-err" role="alert"></p>
+        </div>
+        <button class="btn primary" type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section id="panel" hidden>
+      <div class="admin-bar">
+        <h1>Agenda de charlas</h1>
+        <div class="btns">
+          <button class="btn ghost" id="refresh" type="button">Actualizar</button>
+          <button class="btn ghost" id="run-tick" type="button">Lanzar avisos</button>
+          <button class="btn ghost" id="logout" type="button">Salir</button>
+        </div>
+      </div>
+      <p class="hint" id="status" role="status"></p>
+      <div id="agenda"></div>
+    </section>
+  </main>
+  <script type="module" src="/admin.js"></script>
+</body>
+</html>

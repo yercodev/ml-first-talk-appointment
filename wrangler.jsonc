@@ -1,0 +1,42 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ml-first-talk",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-04",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "AGENDA", "class_name": "Agenda" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Agenda"] }],
+  "triggers": { "crons": ["* * * * *"] },
+  "observability": { "enabled": true },
+  "vars": {
+    // Zona horaria (Colombia: UTC-5, sin horario de verano)
+    "TZ_OFFSET_MIN": "-300",
+    "TZ_LABEL": "hora Colombia",
+    // Cupos: el primero a las 16:30, de 40 min, 9 por dia (ultimo 21:50-22:30)
+    "FIRST_SLOT_HOUR": "16",
+    "FIRST_SLOT_MINUTE": "30",
+    "SLOT_MINUTES": "40",
+    "SLOTS_PER_DAY": "9",
+    "WINDOW_DAYS": "14",
+    "MIN_LEAD_MINUTES": "60",
+    // Avisos
+    "REMINDER_MINUTES": "15",
+    "AGENDA_HOUR": "16",
+    // Discord
+    "DISCORD_GUILD_ID": "1422085223348179028",
+    "DISCORD_ROLE_ID": "1567723288900149430",
+    "DISCORD_TEXT_CHANNEL_ID": "1567723300287815803",
+    "DISCORD_VOICE_CHANNEL_ID": "1567723301856481300",
+    "DISCORD_INVITE_URL": "https://discord.gg/9m2MhhgPHv",
+    "NOTIFY_USER_IDS": "224261961502818305",
+    "NOTIFY_CHANNEL_ID": "",
+    "DISCORD_DRY_RUN": "0"
+  }
+}
