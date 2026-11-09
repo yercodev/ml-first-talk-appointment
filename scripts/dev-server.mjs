@@ -3,7 +3,7 @@
 //   node scripts/dev-server.mjs [puerto]      (por defecto 8799)
 // Variables: FAKE_NOW=2026-11-10T17:00:00Z fija el reloj; ADMIN_KEY (por defecto "dev-admin").
 import { createServer } from 'node:http';
-import { readFileSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
@@ -26,7 +26,9 @@ await pg.exec(`
   create extension if not exists pgcrypto with schema extensions;
   grant usage on schema public to anon, authenticated, service_role;
 `);
-await pg.exec(readFileSync(join(root, 'supabase/migrations/0001_mountain_lords_agenda.sql'), 'utf8'));
+for (const f of readdirSync(join(root, 'supabase/migrations')).filter((x) => x.endsWith('.sql')).sort()) {
+  await pg.exec(readFileSync(join(root, 'supabase/migrations', f), 'utf8'));
+}
 await pg.query(`update mountain_lords.settings set admin_key_hash = extensions.crypt($1, extensions.gen_salt('bf', 6))`, [adminKey]);
 if (process.env.FAKE_NOW) await pg.query(`update mountain_lords.settings set allow_fake_now = true, fake_now = $1`, [process.env.FAKE_NOW]);
 

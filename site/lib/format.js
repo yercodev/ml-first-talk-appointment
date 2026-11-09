@@ -72,3 +72,22 @@ export function colombiaSuffix(ms, agendaOffset, visitorOffset) {
   if (!v) return '(hora Colombia)';
   return `(hora Colombia; en tu hora, ${v.day ? v.day + ', ' : ''}${v.time})`;
 }
+
+/** "domingo 15 de noviembre" (minuscula: para mitad de frase) a partir de "2026-11-15". Sale de bookingUntil, nunca escrito a mano. */
+export function dateMid(dateStr) {
+  const ms = Date.parse(`${dateStr}T12:00:00Z`);
+  const long = longDate(ms, 0);
+  return long.charAt(0).toLowerCase() + long.slice(1);
+}
+
+/** Chip mientras haya fecha de cierre (sin punto, como los demas chips). */
+export const chipUntilText = (dateStr) => `Charlas hasta el ${dateMid(dateStr)}`;
+
+/** Convocatoria cerrada: titular y lineas. */
+export const CLOSED_TITLE = 'La convocatoria cerró';
+export const closedLine1 = (dateStr) => `Las charlas del proceso fueron hasta el ${dateMid(dateStr)}.`;
+export const CLOSED_LINE2_BEFORE = 'Si te postulaste y no alcanzaste a reservar, escríbele a Yerco en ';
+export const CLOSED_LINE2_LINK = 'YercoVerse';
+
+/** Sin cupos libres antes del cierre. */
+export const noSlotsBefore = (dateStr) => `Ya no quedan horarios libres: el último día de charlas es el ${dateMid(dateStr)}. `;

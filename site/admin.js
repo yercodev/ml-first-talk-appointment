@@ -169,6 +169,11 @@ async function load(resetStatus = true) {
     if (chips.children.length) sec.append(chips);
     box.append(sec);
   }
+  if (d.bookingUntil) {
+    $('until-status').textContent = `Convocatoria abierta hasta el ${fmt.dateMid(d.bookingUntil)} (incluido).`;
+  } else {
+    $('until-status').textContent = 'Convocatoria sin fecha de cierre.';
+  }
   renderIntegration(d);
   if (resetStatus) setStatus(`${total} charla${total === 1 ? '' : 's'} agendada${total === 1 ? '' : 's'} · hora Colombia`);
 }

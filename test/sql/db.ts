@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // 0001 + 0002 (en orden). Se aplican siempre juntas, como las pega Yerco.
-export const MIGRATION = ['0001_mountain_lords_agenda.sql', '0002_pgrst_error_format.sql']
+export const MIGRATION = ['0001_mountain_lords_agenda.sql', '0002_pgrst_error_format.sql', '0003_safeupdate_y_cierre.sql']
   .map((f) => readFileSync(join(here, '../../supabase/migrations', f), 'utf8'))
   .join(';\n');
 

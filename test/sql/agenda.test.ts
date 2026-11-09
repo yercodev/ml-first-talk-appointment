@@ -148,7 +148,7 @@ beforeEach(async () => {
   await q(
     `update mountain_lords.settings set utc_offset = '-05:00', day_start = '16:30', day_end = '22:30', slot_minutes = 40,
       window_days = 14, min_lead_minutes = 60, max_bookings_per_ip_per_day = 3, retention_days = 30, reminder_minutes = 15,
-      daily_agenda_time = '16:00', lease_seconds = 120, admin_key_hash = extensions.crypt($1, extensions.gen_salt('bf', 4))`,
+      daily_agenda_time = '16:00', lease_seconds = 120, booking_until = null, admin_key_hash = extensions.crypt($1, extensions.gen_salt('bf', 4))`,
     [ADMIN_KEY],
   );
   await setNow(T0);
@@ -683,6 +683,73 @@ describe('textos y version del aviso (marketing ML-001)', () => {
     expect(welcome).toContain(`<t:${slotMs(2, 1) / 1000}:t>`);
     expect(welcome).toContain('(hora Colombia; en tu hora,');
     expect(texts(run.log).some((x) => /bienvenido/.test(x))).toBe(false);
+  });
+});
+
+describe('cierre de la convocatoria (booking_until)', () => {
+  const setUntil = (d: string | null) => q(`update mountain_lords.settings set booking_until = $1 where id`, [d]);
+
+  it('la migracion deja el cierre en el domingo 15 de noviembre de 2026 la primera vez que se aplica', async () => {
+    const { MIGRATION } = await import('./db');
+    // Se simula una base sin la columna: se quita y se reaplica la migracion.
+    await q(`alter table mountain_lords.settings drop column booking_until`);
+    await q(MIGRATION);
+    expect((await q(`select booking_until::text as d from mountain_lords.settings`))[0].d).toBe('2026-11-15');
+    await setUntil(null); // reaplicarla de nuevo no pisa lo que se haya puesto despues
+    await q(MIGRATION);
+    expect((await q(`select booking_until from mountain_lords.settings`))[0].booking_until).toBeNull();
+  });
+
+  it('sin cierre (null): 14 dias, closed=false y bookingUntil=null', async () => {
+    const s = await slotsOf();
+    expect(s.days).toHaveLength(14);
+    expect(s.closed).toBe(false);
+    expect(s.bookingUntil).toBeNull();
+  });
+
+  it('ml_slots no ofrece dias posteriores al cierre y devuelve bookingUntil', async () => {
+    await setUntil('2026-11-15');
+    const s = await slotsOf();
+    expect(s.bookingUntil).toBe('2026-11-15');
+    expect(s.days).toHaveLength(6); // 10, 11, 12, 13, 14 y 15
+    expect(s.days.at(-1).date).toBe('2026-11-15');
+    expect(s.closed).toBe(false);
+  });
+
+  it('el dia 15 se puede reservar (hasta el ultimo cupo) y el 16 no: 422 slot_not_bookable con reason "closed"', async () => {
+    await setUntil('2026-11-15');
+    expect((await book(slot(5, 8), 'user_a')).ok).toBe(true); // domingo 15, 9:50 PM
+    const r = await book(slot(6, 0), 'user_b'); // lunes 16, 4:30 PM
+    expect(r.status).toBe(422);
+    expect(r.data.code).toBe('slot_not_bookable');
+    expect(r.data.details.reason).toBe('closed');
+    expect(await q(`select 1 from mountain_lords.booking`)).toHaveLength(1);
+    expect((await book(slot(13, 0), 'user_c')).data.details.reason).toBe('closed'); // y los del fondo de la ventana
+  });
+
+  it('closed: false con dias reservables; true cuando ya no quedan cupos con antelacion o el cierre ya paso', async () => {
+    await setUntil('2026-11-15');
+    await setNow('2026-11-15T12:00:00Z'); // domingo 15, 7:00 AM COT: quedan los cupos de la tarde
+    expect((await slotsOf()).closed).toBe(false);
+    await setNow('2026-11-16T02:30:00Z'); // domingo 15, 9:30 PM COT: el ultimo cupo (9:50) ya no tiene 60 min de antelacion
+    const late = await slotsOf();
+    expect(late.closed).toBe(true);
+    expect(late.days.at(-1).slots.every((x: any) => !x.available)).toBe(true);
+    await setNow('2026-11-16T17:00:00Z'); // lunes 16, ya paso el cierre
+    const after = await slotsOf();
+    expect(after.closed).toBe(true);
+    expect(after.days).toEqual([]);
+    expect(after.bookingUntil).toBe('2026-11-15');
+  });
+
+  it('el admin ve hasta cuando esta abierta la convocatoria; las reservas ya hechas no se mueven', async () => {
+    await book(slot(2, 1), 'user_a');
+    await setUntil('2026-11-11');
+    const ag = (await rpc('ml_admin_agenda', { p_key: ADMIN_KEY })).data;
+    expect(ag.bookingUntil).toBe('2026-11-11');
+    expect(ag.days.flatMap((d: any) => d.slots).filter((x: any) => x.state === 'booked')).toHaveLength(1); // la del 12 sigue ahi
+    await setUntil(null);
+    expect((await rpc('ml_admin_agenda', { p_key: ADMIN_KEY })).data.bookingUntil).toBeNull();
   });
 });
 

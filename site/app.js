@@ -38,6 +38,13 @@ async function loadSlots() {
   // El chip sale de la configuracion (day_start), no de un texto fijo.
   const first = r.data.days[0]?.slots[0];
   if (first) $('chip-start').firstChild.textContent = `Todos los días desde las ${time12(first.start)} `;
+  // Fecha de cierre de la convocatoria (sale de bookingUntil): «Charlas hasta el domingo 15 de noviembre».
+  if (r.data.bookingUntil) {
+    $('chip-until').textContent = fmt.chipUntilText(r.data.bookingUntil);
+    $('chip-until').hidden = false;
+  } else {
+    $('chip-until').hidden = true;
+  }
 }
 
 // ---- Dias, horas y formulario
@@ -47,7 +54,19 @@ function renderDays() {
   const box = $('days');
   box.replaceChildren();
   if (!state.data.days.some((d) => freeCount(d) > 0)) {
-    box.append(el('p', { class: 'loading' }, 'No quedan horarios libres en los próximos 14 días. Vuelve mañana.'));
+    if (state.data.bookingUntil) {
+      box.append(
+        el(
+          'p',
+          { class: 'loading' },
+          document.createTextNode(fmt.noSlotsBefore(state.data.bookingUntil) + fmt.CLOSED_LINE2_BEFORE),
+          el('a', { href: state.data.inviteUrl || '#', target: '_blank', rel: 'noopener noreferrer' }, fmt.CLOSED_LINE2_LINK),
+          document.createTextNode('.'),
+        ),
+      );
+    } else {
+      box.append(el('p', { class: 'loading' }, 'No quedan horarios libres en los próximos 14 días. Vuelve mañana.'));
+    }
     return;
   }
   for (const day of state.data.days) {
@@ -214,6 +233,23 @@ async function copyLink() {
   setTimeout(() => ($('copy').textContent = 'Copiar enlace'), 1800);
 }
 
+// ---- Convocatoria cerrada: el titular sustituye al H1 y la linea a la bajada; se esconden chips y pasos (quedan logo y pie)
+function showClosed() {
+  const until = state.data.bookingUntil;
+  $('hero-title').textContent = fmt.CLOSED_TITLE;
+  $('hero-sub').textContent = until ? fmt.closedLine1(until) : '';
+  $('hero-sub').hidden = !until;
+  const extra = $('closed-extra');
+  extra.replaceChildren(
+    document.createTextNode(fmt.CLOSED_LINE2_BEFORE),
+    el('a', { href: state.data.inviteUrl || '#', target: '_blank', rel: 'noopener noreferrer' }, fmt.CLOSED_LINE2_LINK),
+    document.createTextNode('.'),
+  );
+  extra.hidden = false;
+  $('chips').hidden = true;
+  $('booking-flow').hidden = true;
+}
+
 // ---- Arranque
 function bind() {
   $('form').addEventListener('submit', submitBooking);
@@ -238,6 +274,11 @@ async function init() {
     $('load-error').hidden = false;
     return;
   }
+  if (state.data.closed) {
+    showClosed();
+    return;
+  }
+  $('booking-flow').hidden = false;
   renderDays();
   const first = state.data.days.find((d) => freeCount(d) > 0);
   if (first) selectDay(first.date);

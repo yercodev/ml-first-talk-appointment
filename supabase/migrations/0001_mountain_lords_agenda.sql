@@ -703,7 +703,8 @@ declare
 begin
   select * into s from mountain_lords.settings;
   v_today := mountain_lords.to_local(v_now)::date;
-  update mountain_lords.integration_run set last_run_at = v_now;
+  -- Con WHERE explicito: pg_safeupdate (Supabase) rechaza UPDATE/DELETE sin WHERE en las peticiones de PostgREST.
+  update mountain_lords.integration_run set last_run_at = v_now where id;
 
   -- Limpieza (D10): reservas 30 dias despues de que termino la charla (tambien las canceladas).
   delete from mountain_lords.booking where slot_end + s.retention_days * interval '1 day' < v_now;
