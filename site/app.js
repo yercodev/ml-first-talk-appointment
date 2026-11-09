@@ -38,6 +38,14 @@ async function loadSlots() {
   // El chip sale de la configuracion (day_start), no de un texto fijo.
   const first = r.data.days[0]?.slots[0];
   if (first) $('chip-start').firstChild.textContent = `Todos los días desde las ${time12(first.start)} `;
+  // Fecha de cierre de la convocatoria: «Reservas hasta el domingo 15 de noviembre».
+  if (r.data.bookingUntil) {
+    const longDay = fmt.longDate(Date.parse(`${r.data.bookingUntil}T12:00:00Z`), 0);
+    $('chip-until').textContent = `Reservas hasta el ${longDay.charAt(0).toLowerCase()}${longDay.slice(1)}`;
+    $('chip-until').hidden = false;
+  } else {
+    $('chip-until').hidden = true;
+  }
 }
 
 // ---- Dias, horas y formulario
@@ -238,6 +246,14 @@ async function init() {
     $('load-error').hidden = false;
     return;
   }
+  if (state.data.closed) {
+    // Convocatoria cerrada: en lugar de los pasos, el bloque de cierre.
+    $('booking-flow').hidden = true;
+    $('view-closed').hidden = false;
+    return;
+  }
+  $('view-closed').hidden = true;
+  $('booking-flow').hidden = false;
   renderDays();
   const first = state.data.days.find((d) => freeCount(d) > 0);
   if (first) selectDay(first.date);

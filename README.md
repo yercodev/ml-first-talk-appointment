@@ -36,6 +36,16 @@ Todo lo redacta SQL (`mountain_lords.*` en la migración) y lo prueba el CI:
 
 También **pone el rol ML-temp** (`PUT /guilds/{guild}/members/{user}/roles/{rol}`). No lo quita nunca. Lo que escribe el aspirante va escapado y con `allowed_mentions` restringido; su mensaje solo aparece en los DMs a Yerco.
 
+## Cierre de la convocatoria
+
+`settings.booking_until` (fecha, hora Colombia, incluida; `null` = sin cierre). La 0003 la deja en el domingo 15 de noviembre de 2026. Después de esa fecha `ml_slots` devuelve `closed: true` y la portada muestra el bloque de convocatoria cerrada. Para moverla o quitarla:
+
+```sql
+update mountain_lords.settings set booking_until = '2026-11-22' where id;   -- o null
+```
+
+En el SQL de las migraciones, todo `UPDATE`/`DELETE` sobre `mountain_lords.*` lleva `WHERE` (un test lo comprueba): `pg_safeupdate` rechaza los que no.
+
 ## Cambiar el horario
 
 Todo está en `mountain_lords.settings` (una fila). Se cambia con un `UPDATE` en el SQL Editor, sin desplegar nada:
@@ -67,7 +77,7 @@ Los tests de SQL cubren los escenarios de la HU. Con `TEST_DATABASE_URL=postgres
 ## Puesta en marcha (lo hace Yerco)
 
 1. **Base de datos de staging** (`dojgxfotawtxitgcppyn`), en el SQL Editor y en este orden:
-   1. el contenido de `supabase/migrations/0001_mountain_lords_agenda.sql` y después el de `0002_pgrst_error_format.sql` (las dos se pueden ejecutar más de una vez; la 0002 arregla el formato de los errores para PostgREST y añade la purga de reservas de prueba);
+   1. el contenido de `supabase/migrations/0001_mountain_lords_agenda.sql` y después `0002_pgrst_error_format.sql` y `0003_safeupdate_y_cierre.sql` (todas se pueden ejecutar más de una vez; la 0002 arregla el formato de los errores para PostgREST y añade la purga de reservas de prueba; la 0003 evita `UPDATE` sin `WHERE`, que `pg_safeupdate` de Supabase rechaza, y añade la fecha de cierre de la convocatoria);
    2. el hash de la clave de administrador: `ai-agents/developer/ml-first-talk/staging-config.sql` (la clave real está en `pagina/.ml-first-talk.env`, fuera del repo). Para generarlo otra vez: `node scripts/hash-admin-key.mjs <archivo.env>`.
    - No añadas `mountain_lords` a «Exposed schemas» de la API.
 2. **Clave anon de staging** (pública): en GitHub, *Settings → Secrets and variables → Actions → Variables*, crea `ML_ANON_KEY`. El workflow la inyecta en `config.js` al publicar. (Alternativa: sustituir `PEGAR_ANON_KEY_STAGING` en `site/config.js`.)

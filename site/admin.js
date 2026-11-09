@@ -169,6 +169,12 @@ async function load(resetStatus = true) {
     if (chips.children.length) sec.append(chips);
     box.append(sec);
   }
+  if (d.bookingUntil) {
+    const longDay = fmt.longDate(Date.parse(`${d.bookingUntil}T12:00:00Z`), 0);
+    $('until-status').textContent = `Convocatoria abierta hasta el ${longDay.charAt(0).toLowerCase()}${longDay.slice(1)} (incluido).`;
+  } else {
+    $('until-status').textContent = 'Convocatoria sin fecha de cierre.';
+  }
   renderIntegration(d);
   if (resetStatus) setStatus(`${total} charla${total === 1 ? '' : 's'} agendada${total === 1 ? '' : 's'} · hora Colombia`);
 }

@@ -63,11 +63,22 @@ async function main() {
   console.log(`Humo contra ${url}`);
   const s = await rpc('ml_slots');
   check('ml_slots 200 con schemaVersion >= 1', s.status === 200 && s.data.schemaVersion >= 1, JSON.stringify(s.data).slice(0, 200));
-  check('ml_slots: 14 dias de 9 cupos de 40 min, UTC-5', s.data.days?.length === 14 && s.data.days[1].slots.length === 9 && s.data.utcOffset === '-05:00' && s.data.slotMinutes === 40);
+  check('ml_slots: cupos de 40 min, 9 por dia, UTC-5', s.data.days?.length >= 0 && (s.data.days.length === 0 || s.data.days[0].slots.length === 9) && s.data.utcOffset === '-05:00' && s.data.slotMinutes === 40);
+  const until = s.data.bookingUntil ?? null;
+  check('ml_slots trae bookingUntil y closed; no ofrece dias posteriores al cierre', 'closed' in s.data && 'bookingUntil' in s.data && (!until || s.data.days.every((d) => d.date <= until)), JSON.stringify({ until, closed: s.data.closed }));
+  if (s.data.closed) {
+    // La convocatoria cerro (booking_until ya paso o no quedan cupos): no hay donde reservar. Es lo esperado, no un fallo.
+    console.log(`  (CONVOCATORIA CERRADA${until ? ` desde el ${until}` : ''}: ml_slots devuelve closed=true; se omiten las reservas de prueba, solo hay lecturas)`);
+    const direct = await call('/rest/v1/booking', null, { 'Accept-Profile': 'mountain_lords' });
+    check('tabla del esquema con anon -> 406 PGRST106 (esquema no expuesto)', direct.status === 406 && direct.data.code === 'PGRST106');
+    check('la integracion con anon se deniega (401/403, 42501)', [401, 403].includes((await rpc('ml_integration_pending', {})).status));
+    check('admin con clave mala -> 401 unauthorized', (await rpc('ml_admin_agenda', { p_key: 'clave-mala' })).status === 401);
+    return;
+  }
   check('ml_slots no expone datos de nadie', s.data.days.flatMap((d) => d.slots).every((x) => Object.keys(x).sort().join() === 'available,end,start'));
 
   // Errores que NO guardan nada: comprueban que PostgREST traduce bien cada codigo.
-  const lastDay = s.data.days.at(-1).slots;
+  const lastDay = s.data.days.at(-1).slots; // con cierre, el ultimo dia ofrecido es el de bookingUntil
   const target = lastDay.at(-1); // ultimo cupo del dia mas lejano
   const bad = await book(target.start, 'Juan Perez', { p_display_name: '' });
   check('validacion -> 400 validation_error con details por campo (el caso que dio 500)', bad.status === 400 && bad.data.code === 'validation_error' && !!bad.data.details?.discordUsername && !!bad.data.details?.displayName, JSON.stringify(bad));
@@ -90,7 +101,7 @@ async function main() {
   }
 
   const ag = await rpc('ml_admin_agenda', { p_key: adminKey });
-  check('admin con la clave buena -> 200 con 14 dias', ag.status === 200 && ag.data.days?.length === 14);
+  check('admin con la clave buena -> 200 con 14 dias y bookingUntil', ag.status === 200 && ag.data.days?.length === 14 && 'bookingUntil' in ag.data);
   const before = ag.data.days.flatMap((d) => d.slots).filter((x) => x.state === 'booked').length;
 
   try {

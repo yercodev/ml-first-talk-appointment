@@ -41,7 +41,7 @@ describe.skipIf(!URL_ || !DB)('PostgREST real: las RPC ml_*', () => {
     const { Client } = await import('pg');
     pg = new Client({ connectionString: DB });
     await pg.connect();
-    await pg.query(`update mountain_lords.settings set allow_fake_now = false, fake_now = null, max_bookings_per_ip_per_day = 3,
+    await pg.query(`update mountain_lords.settings set allow_fake_now = false, fake_now = null, booking_until = null, max_bookings_per_ip_per_day = 3,
       admin_key_hash = extensions.crypt($1, extensions.gen_salt('bf', 4))`, [ADMIN_KEY]);
     await pg.query('delete from mountain_lords.booking');
     await pg.query('delete from mountain_lords.slot_block');
@@ -142,6 +142,30 @@ describe.skipIf(!URL_ || !DB)('PostgREST real: las RPC ml_*', () => {
       const r = await rpc(fn, args as any);
       expect([401, 403]).toContain(r.status);
       expect(r.body.code).toBe('42501');
+    }
+  });
+
+  it('cierre de la convocatoria: ml_slots no ofrece dias posteriores, closed y bookingUntil; ml_book -> 422 reason "closed"', async () => {
+    const all = (await rpc('ml_slots')).body.days;
+    const until = all[2].date;
+    await pg.query('update mountain_lords.settings set booking_until = $1 where id', [until]);
+    try {
+      const s = await rpc('ml_slots');
+      expect(s.status).toBe(200);
+      expect(s.body.bookingUntil).toBe(until);
+      expect(s.body.days.at(-1).date <= until).toBe(true);
+      expect(s.body.days.length).toBeLessThan(all.length);
+      const late = all.at(-1).slots.find((x: any) => x.available).start; // un cupo posterior al cierre
+      const r = await book(late, `zz.smoke.${uniq()}`);
+      expect(r.status).toBe(422);
+      expect(r.body.code).toBe('slot_not_bookable');
+      expect(details(r.body).reason).toBe('closed');
+      await pg.query(`update mountain_lords.settings set booking_until = '2000-01-01' where id`); // cierre ya pasado
+      const closed = await rpc('ml_slots');
+      expect(closed.body.closed).toBe(true);
+      expect(closed.body.days).toEqual([]);
+    } finally {
+      await pg.query('update mountain_lords.settings set booking_until = null where id');
     }
   });
 
