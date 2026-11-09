@@ -170,8 +170,7 @@ async function load(resetStatus = true) {
     box.append(sec);
   }
   if (d.bookingUntil) {
-    const longDay = fmt.longDate(Date.parse(`${d.bookingUntil}T12:00:00Z`), 0);
-    $('until-status').textContent = `Convocatoria abierta hasta el ${longDay.charAt(0).toLowerCase()}${longDay.slice(1)} (incluido).`;
+    $('until-status').textContent = `Convocatoria abierta hasta el ${fmt.dateMid(d.bookingUntil)} (incluido).`;
   } else {
     $('until-status').textContent = 'Convocatoria sin fecha de cierre.';
   }

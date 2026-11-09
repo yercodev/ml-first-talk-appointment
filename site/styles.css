@@ -260,4 +260,3 @@ a { color: #7fa8ff; }
 .chip.blocked { border-style: dashed; color: var(--steel); background: rgba(148, 163, 184, 0.1); }
 .chip.past { opacity: 0.35; cursor: default; }
 .chip-legend { color: var(--steel); font-size: 0.78rem; margin: 2px 0 0; }
-.provisional { font-size: 0.8rem; border: 1px dashed var(--line); border-radius: 8px; display: inline-block; padding: 4px 10px; }

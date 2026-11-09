@@ -136,7 +136,7 @@ begin
   if not mountain_lords.is_grid_time(v_local) then
     perform mountain_lords.fail(422, 'slot_not_bookable', 'Ese horario no existe.', jsonb_build_object('reason', 'outside_schedule'));
   elsif s.booking_until is not null and v_local::date > s.booking_until then
-    perform mountain_lords.fail(422, 'slot_not_bookable', 'La convocatoria ya cerró.', jsonb_build_object('reason', 'closed'));
+    perform mountain_lords.fail(422, 'slot_not_bookable', 'La convocatoria cerró.', jsonb_build_object('reason', 'closed'));
   elsif v_local::date >= mountain_lords.to_local(v_now)::date + s.window_days then
     perform mountain_lords.fail(422, 'slot_not_bookable', 'Ese horario está fuera de la ventana.', jsonb_build_object('reason', 'beyond_window'));
   elsif p_slot_start <= v_now then
