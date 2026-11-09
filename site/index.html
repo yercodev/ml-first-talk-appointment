@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://dojgxfotawtxitgcppyn.supabase.co; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Primera charla · Mountain Lords</title>
+  <meta name="description" content="El primer paso para jugar en Mountain Lords, equipo de esports de VALORANT: una charla de 40 minutos por voz en Discord con Yerco. Elige día y hora.">
+  <meta name="theme-color" content="#0F1E3A">
+  <link rel="canonical" href="https://yercodev.github.io/ml-first-talk-appointment/">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Mountain Lords">
+  <meta property="og:title" content="Primera charla · Mountain Lords">
+  <meta property="og:description" content="El primer paso para jugar en Mountain Lords: 40 minutos por voz en Discord con Yerco. Elige día y hora.">
+  <meta property="og:url" content="https://yercodev.github.io/ml-first-talk-appointment/">
+  <meta property="og:image" content="https://yercodev.github.io/ml-first-talk-appointment/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Primera charla · Mountain Lords">
+  <meta name="twitter:description" content="El primer paso para jugar en Mountain Lords: 40 minutos por voz en Discord con Yerco. Elige día y hora.">
+  <meta name="twitter:image" content="https://yercodev.github.io/ml-first-talk-appointment/og.jpg">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Saltar al contenido</a>
+
+  <header class="hero">
+    <div class="wrap hero-inner">
+      <img class="logo" src="assets/logo-480.webp" srcset="assets/logo-240.webp 240w, assets/logo-480.webp 480w" sizes="(min-width: 720px) 200px, 150px" width="480" height="480" alt="Mountain Lords">
+      <div>
+        <h1>Agenda tu primera charla</h1>
+        <p class="sub">El primer paso para jugar en Mountain Lords: una charla por voz con Yerco, fundador del equipo.</p>
+        <ul class="chips" aria-label="Datos de la charla">
+          <li id="chip-start">Todos los días desde las 4:30&nbsp;PM <span class="muted">(hora Colombia)</span></li>
+          <li>40 minutos</li>
+          <li>En Discord (YercoVerse)</li>
+        </ul>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <div id="booking-flow">
+      <section class="step" id="step-day" aria-labelledby="h-day">
+        <h2 id="h-day"><span class="num">1</span> Elige el día</h2>
+        <div id="days" class="days" role="group" aria-label="Días disponibles"></div>
+        <div id="load-error" class="notice" role="alert" hidden>
+          <span>No pudimos cargar los horarios.</span>
+          <button class="mini" id="retry" type="button">Reintentar</button>
+        </div>
+      </section>
+
+      <section class="step" id="step-time" aria-labelledby="h-time" hidden>
+        <h2 id="h-time"><span class="num">2</span> Elige la hora</h2>
+        <p class="hint" id="tz-note"></p>
+        <div id="slots" class="slots" role="group" aria-label="Horarios"></div>
+      </section>
+
+      <section class="step" id="step-form" aria-labelledby="h-form" hidden>
+        <h2 id="h-form"><span class="num">3</span> Tus datos</h2>
+        <div class="summary" id="summary"></div>
+        <form id="form" novalidate autocomplete="off">
+          <div class="field">
+            <label for="discordUsername">Usuario de Discord</label>
+            <input id="discordUsername" type="text" required maxlength="40" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="lord.aim" aria-describedby="discordUsername-help discordUsername-err">
+            <p class="help" id="discordUsername-help">Es tu nombre de usuario, no tu nombre para mostrar. En Discord, toca tu foto de perfil: aparece debajo de tu nombre. Ej.: lord.aim</p>
+            <p class="err" id="discordUsername-err" role="alert"></p>
+          </div>
+          <div class="field">
+            <label for="displayName">Nombre o nick</label>
+            <input id="displayName" type="text" required maxlength="40" aria-describedby="displayName-err">
+            <p class="err" id="displayName-err" role="alert"></p>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="riotId">Riot ID <span class="opt">(opcional)</span></label>
+              <input id="riotId" type="text" maxlength="40" autocapitalize="none" spellcheck="false" placeholder="LordAim#LAT" aria-describedby="riotId-err">
+              <p class="err" id="riotId-err" role="alert"></p>
+            </div>
+            <div class="field">
+              <label for="mainRole">Rol principal <span class="opt">(opcional)</span></label>
+              <select id="mainRole">
+                <option value="">Sin definir</option>
+                <option value="duelista">Duelista</option>
+                <option value="iniciador">Iniciador</option>
+                <option value="controlador">Controlador</option>
+                <option value="centinela">Centinela</option>
+                <option value="flex">Flex</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label for="message">¿Algo que Yerco deba saber? <span class="opt">(opcional, máx. 300)</span></label>
+            <textarea id="message" rows="3" maxlength="300" aria-describedby="message-count message-err"></textarea>
+            <p class="help counter" id="message-count">0 / 300</p>
+            <p class="err" id="message-err" role="alert"></p>
+          </div>
+          <div class="field">
+            <label class="checkline" for="privacyAccepted">
+              <input id="privacyAccepted" type="checkbox" required aria-describedby="privacyAccepted-err">
+              <span>Acepto el <a href="privacidad.html" target="_blank" rel="noopener">aviso de privacidad</a> y autorizo a Miguel G (Yerco) a usar estos datos solo para agendar y gestionar mi charla y darme acceso a #ml-temp en YercoVerse. La agenda los borra 30 días después de la charla. Si soy menor de 18, mi madre, padre o acudiente lo autoriza.</span>
+            </label>
+            <p class="err" id="privacyAccepted-err" role="alert"></p>
+          </div>
+          <div class="hp" aria-hidden="true">
+            <label for="website">Déjalo vacío</label>
+            <input id="website" name="website" type="text" tabindex="-1" autocomplete="off">
+          </div>
+          <p class="err form-err" id="form-err" role="alert"></p>
+          <button class="btn primary" id="submit" type="submit">Reservar charla</button>
+        </form>
+      </section>
+    </div>
+
+    <section class="step done" id="view-done" aria-live="polite" hidden>
+      <div class="check" aria-hidden="true">✓</div>
+      <h2 class="big" id="done-title" tabindex="-1">Listo: tu charla está agendada</h2>
+      <p class="when" id="done-when"></p>
+      <p class="lead" id="done-user"></p>
+      <p class="lead">Entra a YercoVerse, el Discord de Yerco. Al entrar, el bot te da el rol ML-temp (suele tardar un minuto) y verás #ml-temp, donde te avisamos 15 minutos antes de la charla. Si Discord te pide aceptar las reglas, acéptalas: sin eso el rol no llega.</p>
+      <a class="btn primary xl" id="invite" href="#" target="_blank" rel="noopener noreferrer">Entrar a YercoVerse</a>
+      <div class="cancel-box">
+        <p><strong>Guarda este enlace: con él puedes ver o cancelar tu charla, y no te lo volvemos a mostrar.</strong></p>
+        <div class="copy-row">
+          <input id="manage-link" type="text" readonly aria-label="Enlace de tu reserva">
+          <button class="btn ghost" id="copy" type="button">Copiar enlace</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot wrap">
+    <p>Mountain Lords · Equipo de esports de VALORANT · <a id="foot-invite" href="https://discord.gg/9m2MhhgPHv" target="_blank" rel="noopener noreferrer">YercoVerse</a> · <a href="privacidad.html">Privacidad</a></p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

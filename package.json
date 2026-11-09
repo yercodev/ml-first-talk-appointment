@@ -1,0 +1,25 @@
+{
+  "name": "ml-first-talk-appointment",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Agenda de primera charla de Mountain Lords (GitHub Pages + Supabase + n8n)",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs 8799",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:db": "vitest run test/sql",
+    "smoke": "node scripts/smoke.mjs",
+    "check": "node scripts/check-no-service-key.mjs site"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.15",
+    "@fontsource/inter": "^5.3.0",
+    "@fontsource/teko": "^5.3.0",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

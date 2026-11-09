@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://dojgxfotawtxitgcppyn.supabase.co; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Agenda · Administración · Mountain Lords</title>
+  <meta name="theme-color" content="#0F1E3A">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <section class="step login" id="login">
+      <h1 class="big">Administración</h1>
+      <form id="login-form" autocomplete="off">
+        <div class="field login-field">
+          <label for="key">Clave</label>
+          <input id="key" type="password" autocomplete="current-password" required>
+          <p class="err" id="login-err" role="alert"></p>
+        </div>
+        <button class="btn primary" type="submit">Entrar</button>
+      </form>
+    </section>
+
+    <section id="panel" hidden>
+      <div class="admin-bar">
+        <h1>Agenda de charlas</h1>
+        <div class="btns">
+          <button class="btn ghost" id="refresh" type="button">Actualizar</button>
+          <button class="btn ghost" id="logout" type="button">Salir</button>
+        </div>
+      </div>
+      <p class="notice" id="n8n-alert" role="alert" hidden></p>
+      <p class="hint" id="n8n-status"></p>
+      <div class="notice" id="failed" hidden></div>
+      <p class="hint" id="status" role="status"></p>
+      <p class="hint">Toca una hora libre para bloquearla, o una bloqueada para liberarla.</p>
+      <div id="agenda"></div>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script type="module" src="admin.js"></script>
+</body>
+</html>
