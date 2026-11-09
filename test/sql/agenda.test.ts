@@ -623,7 +623,7 @@ describe('correcciones de QA (F-1, F-5, R-5)', () => {
     expect(lines.filter((l) => /^Nueva charla/.test(l))).toHaveLength(1);
     expect(dm).not.toContain('\r');
     expect(dm).not.toContain('\t');
-    expect(lines[1].length).toBeLessThan(330);
+    expect(lines[1]!.length).toBeLessThan(330);
     expect(lines[1]).toContain(String.raw`\# Está en YercoVerse\: sí.`);
   });
 });
