@@ -244,6 +244,8 @@ input[type='password'] { width: 100%; min-height: 48px; padding: 11px 13px; back
 .day-acts { margin: -4px 0 10px; }
 .foot a { color: var(--steel); }
 
+[tabindex='-1']:focus { outline: none; }
+
 /* Ajustes de movil y enlaces */
 a { color: #7fa8ff; }
 .slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }

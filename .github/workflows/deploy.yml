@@ -9,8 +9,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
@@ -84,27 +82,33 @@ jobs:
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-      - name: Prueba de humo
+      - name: Prueba de humo (solo lectura) contra la pagina publicada y staging
         env:
           URL: ${{ steps.deployment.outputs.page_url }}
           ANON_KEY: ${{ vars.ML_ANON_KEY }}
           SUPABASE_URL: https://dojgxfotawtxitgcppyn.supabase.co
         run: |
           set -euo pipefail
+          test -n "$ANON_KEY" || { echo "::error::Falta la variable ML_ANON_KEY"; exit 1; }
           sleep 10
-          curl -fsS "$URL" > /dev/null
-          curl -fsS "${URL}version.json" | tee version.json
-          grep -q "$GITHUB_SHA" version.json
-          SCHEMA=$(curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/ml_slots" \
-            -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" -H "Content-Type: application/json" -d '{}' \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["schemaVersion"])')
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL")
+          test "$code" = "200" || { echo "::error::La portada responde $code"; exit 1; }
+          curl -fsS "${URL}version.json" -o version.json
+          SHA=$(python3 -c 'import json; print(json.load(open("version.json"))["sha"])')
+          test "$SHA" = "$GITHUB_SHA" || { echo "::error::version.json trae $SHA y se publico $GITHUB_SHA"; exit 1; }
+          code=$(curl -s -o slots.json -w '%{http_code}' -X POST "$SUPABASE_URL/rest/v1/rpc/ml_slots"             -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY" -H "Content-Type: application/json" -d '{}')
+          test "$code" = "200" || { echo "::error::ml_slots responde $code en staging (¿se aplico el SQL 0001?)"; exit 1; }
+          SCHEMA=$(python3 -c 'import json; print(json.load(open("slots.json"))["schemaVersion"])')
           echo "schemaVersion en staging: $SCHEMA (el front espera 1)"
           test "$SCHEMA" -ge 1
           echo "### Publicado" >> "$GITHUB_STEP_SUMMARY"
-          echo "$URL (schemaVersion $SCHEMA)" >> "$GITHUB_STEP_SUMMARY"
+          echo "$URL · commit $SHA · schemaVersion $SCHEMA" >> "$GITHUB_STEP_SUMMARY"

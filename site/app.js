@@ -181,6 +181,8 @@ function showDone(d) {
   $('done-user').textContent = `Usuario de Discord: ${b.discordUsername}. ¿Está bien escrito? Con ese usuario te damos el acceso. Si no, cancela y reserva otra vez.`;
   // El token va en el fragmento (#): no viaja al servidor ni sale en ningun Referer.
   $('manage-link').value = new URL(`reserva.html#${d.manageToken}`, location.href).href;
+  // El foco pasa al titulo de la confirmacion (teclado y lectores de pantalla).
+  $('done-title').focus({ preventScroll: true });
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 

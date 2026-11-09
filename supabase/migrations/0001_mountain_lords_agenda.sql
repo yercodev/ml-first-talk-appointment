@@ -12,6 +12,13 @@
 
 create schema if not exists extensions;
 create extension if not exists pgcrypto with schema extensions;
+do $$ begin
+  -- Si pgcrypto ya estuviera instalado en otro esquema, `create extension if not exists` no haria nada
+  -- y las funciones fallarian mas tarde con un error confuso: se avisa aqui.
+  if to_regprocedure('extensions.crypt(text,text)') is null or to_regprocedure('extensions.digest(text,text)') is null then
+    raise exception 'pgcrypto tiene que estar instalado en el esquema extensions (create extension pgcrypto with schema extensions)';
+  end if;
+end $$;
 
 create schema if not exists mountain_lords;
 revoke all on schema mountain_lords from public, anon, authenticated;
@@ -193,7 +200,11 @@ $$;
 -- Escapa el markdown de Discord y neutraliza menciones/enlaces en texto del aspirante.
 create or replace function mountain_lords.md_escape(p_t text) returns text
 language sql immutable set search_path = '' as $$
-  select regexp_replace(coalesce(p_t, ''), '([\\*_~`|>#\[\]()<@:])', '\\\1', 'g')
+  -- Una sola linea: sin saltos ni caracteres de control, para que el texto del aspirante no pueda
+  -- forjar lineas (p. ej. una falsa cabecera del bot) en los DMs a Yerco.
+  select regexp_replace(
+           btrim(regexp_replace(coalesce(p_t, ''), '[[:cntrl:]]+', ' ', 'g')),
+           '([\\*_~`|>#\[\]()<@:])', '\\\1', 'g')
 $$;
 
 create or replace function mountain_lords.sha256_hex(p_t text) returns text
@@ -262,7 +273,7 @@ language sql stable set search_path = '' as $$
   select coalesce(nullif(concat_ws(' · ',
            case when p_b.riot_id is not null then 'Riot ID: ' || mountain_lords.md_escape(p_b.riot_id) end,
            case when p_b.main_role is not null then 'Rol: ' || mountain_lords.md_escape(p_b.main_role) end,
-           case when p_b.message is not null then 'Mensaje: ' || mountain_lords.md_escape(p_b.message) end), ''), '')
+           case when p_b.message is not null then 'Mensaje: ' || mountain_lords.md_escape(left(p_b.message, 200)) || case when char_length(p_b.message) > 200 then '…' else '' end end), ''), '')
 $$;
 
 -- Encola un aviso. dedupe_key unica: no se encola dos veces.
@@ -761,6 +772,7 @@ declare
   v_present boolean;
   v_listed boolean := coalesce((p_payload ->> 'membersListed')::boolean, false);
   v_linked uuid[] := '{}';
+  v_attempted uuid[] := '{}';
   v_presence jsonb := '{}'::jsonb;
   v_extra text;
   v_voice text;
@@ -780,7 +792,7 @@ begin
     else
       -- S23: esperas de 1, 2, 4 y 8 min, o la de retry_after si es mayor; al 5.º fallo, "fallido".
       v_wait := greatest(power(2, v_n.attempts)::int * interval '1 minute',
-                         coalesce((r ->> 'retryAfterSeconds')::int, 0) * interval '1 second');
+                         ceil(coalesce((r ->> 'retryAfterSeconds')::numeric, 0))::int * interval '1 second');
       update mountain_lords.notification
          set attempts = attempts + 1,
              status = case when attempts + 1 >= 5 then 'failed' else 'pending' end,
@@ -791,7 +803,10 @@ begin
 
   -- b) Vinculos: solo si el rol quedo puesto (la bienvenida no sale antes).
   for r in select * from jsonb_array_elements(coalesce(p_payload -> 'links', '[]'::jsonb)) loop
-    continue when not coalesce((r ->> 'roleOk')::boolean, false);
+    if not coalesce((r ->> 'roleOk')::boolean, false) then
+      v_attempted := v_attempted || (r ->> 'bookingId')::uuid; -- el rol fallo: su presencia no se afirma
+      continue;
+    end if;
     update mountain_lords.booking
        set discord_user_id = r ->> 'discordUserId', role_assigned_at = v_now
      where id = (r ->> 'bookingId')::uuid and status = 'confirmed' and discord_user_id is null and slot_end > v_now
@@ -823,7 +838,16 @@ begin
         and not exists (select 1 from mountain_lords.notification n where n.dedupe_key = 'reminder-dm:' || b.id)
       order by b.slot_start
     loop
-      v_present := v_b.id = any (v_linked) or coalesce((v_presence ->> v_b.id::text)::boolean, false);
+      -- Solo se afirma la presencia con datos reales de ESTA ejecucion; si no, se espera a la siguiente.
+      if v_b.id = any (v_linked) then
+        v_present := true;
+      elsif jsonb_exists(v_presence, v_b.id::text) then
+        v_present := coalesce((v_presence ->> v_b.id::text)::boolean, false);
+      elsif v_b.discord_user_id is null and not (v_b.id = any (v_attempted)) then
+        v_present := false; -- no vinculado y n8n listo a los miembros sin encontrarlo
+      else
+        continue; -- vinculado sin presencia comprobada (o rol fallido): no se inventa nada
+      end if;
       v_extra := mountain_lords.data_lines(v_b);
       perform mountain_lords.enqueue('reminder-dm:' || v_b.id, 'reminder-dm', v_b.id, mountain_lords.dm_target(),
         'En ' || s.reminder_minutes || ' min: ' || mountain_lords.md_escape(v_b.display_name) || ' (' || mountain_lords.md_escape(v_b.discord_username)

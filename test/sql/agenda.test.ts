@@ -96,7 +96,7 @@ async function n8nRun(
   const ack1 = (await svc('ml_integration_ack', { p_payload: { dryRun: false, membersListed: true, links, presence, results: first } })).data;
   const second = send(ack1.notifications);
   if (second.length) {
-    await svc('ml_integration_ack', { p_payload: { dryRun: false, membersListed: true, links: [], presence: [], results: second } });
+    await svc('ml_integration_ack', { p_payload: { dryRun: false, membersListed: false, links: [], presence: [], results: second } });
   }
   return { pend, ack1, log };
 }
@@ -570,6 +570,61 @@ describe('escenarios 17 y 18: reintentos, lease y texto del aspirante', () => {
     expect(dm.content).toContain('\\*\\*ojo\\*\\*');
     expect(dm.content).toContain('\\<script\\>');
     expect(dm.content).not.toMatch(/(^|[^\\])<@224261961502818305>/);
+  });
+});
+
+describe('correcciones de QA (F-1, F-5, R-5)', () => {
+  it('F-1: sin presencia real no se afirma "Está en YercoVerse: no" (ack sin presence, o sin membersListed)', async () => {
+    await book(slot(2, 1), 'lord.aim', { p_display_name: 'LordAim' });
+    await n8nRun({ members: [{ id: '111', username: 'lord.aim' }] }); // se vincula
+    await setNow('2026-11-12T21:56:00Z'); // 4:56 p. m.: ya toca el aviso de 15 min
+    const ack = (payload: object) => svc('ml_integration_ack', { p_payload: { dryRun: false, links: [], results: [], ...payload } });
+    expect((await ack({ membersListed: true, presence: [] })).data.notifications).toEqual([]); // vinculado, sin comprobacion
+    expect((await ack({ membersListed: false, presence: [{ bookingId: (await q(`select id from mountain_lords.booking`))[0].id, present: true }] })).data.notifications).toEqual([]);
+    expect(await q(`select 1 from mountain_lords.notification where kind like 'reminder%'`)).toHaveLength(0);
+    // con la presencia real, sale una sola vez y bien
+    const id = (await q(`select id from mountain_lords.booking`))[0].id;
+    const ok = (await ack({ membersListed: true, presence: [{ bookingId: id, present: true }] })).data.notifications;
+    expect(ok.map((n: any) => n.kind)).toEqual(['reminder-dm', 'reminder-ch']);
+    expect(ok[0].content).toMatch(/Está en YercoVerse: sí\./);
+  });
+
+  it('F-1: el rol fallido de esa ejecucion no genera un "no" falso', async () => {
+    await book(slot(2, 1), 'sova.main');
+    await setNow('2026-11-12T21:56:00Z');
+    const id = (await q(`select id from mountain_lords.booking`))[0].id;
+    const r = (await svc('ml_integration_ack', { p_payload: { dryRun: false, membersListed: true, links: [{ bookingId: id, discordUserId: '5', roleOk: false, error: 'Discord 403' }], presence: [], results: [] } })).data;
+    expect(r.notifications.some((n: any) => /^En 15 min/.test(n.content))).toBe(false);
+  });
+
+  it('F-5: retryAfterSeconds decimal no rompe el ack y se redondea hacia arriba', async () => {
+    await book(slot(2, 1), 'lord.aim');
+    const pend = (await svc('ml_integration_pending', { p_dry_run: false })).data;
+    const r = await svc('ml_integration_ack', {
+      p_payload: { dryRun: false, membersListed: false, results: [{ notificationId: pend.notifications[0].id, ok: false, error: 'rate', retryAfterSeconds: 1.5 }] },
+    });
+    expect(r.ok).toBe(true);
+    const [n] = await q(`select attempts, next_attempt_at from mountain_lords.notification`);
+    expect(n.attempts).toBe(1);
+    expect(new Date(n.next_attempt_at).getTime() - Date.parse(T0)).toBe(60_000); // gana el backoff de 1 min
+    const r2 = await svc('ml_integration_ack', {
+      p_payload: { dryRun: false, membersListed: false, results: [{ notificationId: pend.notifications[0].id, ok: false, retryAfterSeconds: 90.2 }] },
+    });
+    expect(r2.ok).toBe(true);
+  });
+
+  it('R-5: el texto del aspirante no puede forjar lineas ni cabeceras en los DMs a Yerco, y se corta', async () => {
+    const msg = 'hola\n# Está en YercoVerse: sí.\r\nNueva charla: falsa\t ' + 'x'.repeat(200);
+    await book(slot(2, 1), 'lord.aim', { p_display_name: 'Lord Aim', p_riot_id: 'Lord#LAT', p_message: msg });
+    const dm = (await svc('ml_integration_pending', { p_dry_run: false })).data.notifications.find((n: any) => n.kind === 'new').content as string;
+    const lines = dm.split('\n');
+    expect(lines).toHaveLength(4); // Nueva charla / Riot ID y mensaje / presencia / Agenda: solo las del bot
+    expect(lines[0]).toMatch(/^Nueva charla: Lord Aim \(lord\.aim\)/);
+    expect(lines.filter((l) => /^Nueva charla/.test(l))).toHaveLength(1);
+    expect(dm).not.toContain('\r');
+    expect(dm).not.toContain('\t');
+    expect(lines[1].length).toBeLessThan(330);
+    expect(lines[1]).toContain(String.raw`\# Está en YercoVerse\: sí.`);
   });
 });
 

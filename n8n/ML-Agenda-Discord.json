@@ -225,7 +225,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const pend = $('Pendiente').first().json;\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) dm = $('Abrir DM de Yerco').first().json.id;\nlet members = [];\nlet listed = false;\nif ($('Miembros').isExecuted) {\n  members = $('Miembros').all().map(function (i) { return i.json; });\n  listed = members.length > 0 && members.every(function (m) { return m.user && !m.error; });\n}\n// Se compara el nombre de USUARIO (nunca el visible) y se ignoran los bots.\nconst byName = {};\nconst byId = {};\nmembers.forEach(function (m) {\n  if (!m.user || m.user.bot) return;\n  byName[String(m.user.username).toLowerCase()] = m.user.id;\n  byId[m.user.id] = true;\n});\nconst base = 'https://discord.com/api/v10';\nconst out = [{ json: { kind: 'plan', membersListed: listed, presence: [] } }];\npend.linkCandidates.forEach(function (c) {\n  const uid = listed ? byName[c.discordUsername] : undefined;\n  if (!uid) return;\n  out.push({ json: { kind: 'role', where: 'rol ML-temp', method: 'PUT', url: base + '/guilds/' + pend.config.guildId + '/members/' + uid + '/roles/' + pend.config.roleId, reason: 'Primera charla agendada (' + c.bookingId + ')', link: { bookingId: c.bookingId, discordUserId: uid, discordUsername: c.discordUsername } } });\n});\nif (listed) {\n  out[0].json.presence = pend.presenceChecks.map(function (p) { return { bookingId: p.bookingId, present: !!byId[p.discordUserId] }; });\n}\npend.notifications.forEach(function (n) {\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  out.push({ json: { kind: 'notification', where: n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } });\n});\nreturn out;"
+        "jsCode": "const pend = $('Pendiente').first().json;\n// Canal de DM de Yerco. Si no se pudo abrir (dm = null), los DMs se marcan como fallidos (cuentan intento),\n// pero los roles y los mensajes al canal siguen su curso.\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nlet members = [];\nlet listed = false;\nif ($('Miembros').isExecuted) {\n  members = $('Miembros').all().map(function (i) { return i.json; });\n  listed = members.length > 0 && members.every(function (m) { return m.user && !m.error; });\n}\n// Se compara el nombre de USUARIO (nunca el visible) y se ignoran los bots.\nconst byName = {};\nconst byId = {};\nmembers.forEach(function (m) {\n  if (!m.user || m.user.bot) return;\n  byName[String(m.user.username).toLowerCase()] = m.user.id;\n  byId[m.user.id] = true;\n});\nconst base = 'https://discord.com/api/v10';\n// Peticion que nunca llega a ningun sitio (conexion rechazada): sirve para el item de control y para los\n// DMs sin canal; el nodo HTTP continua con un item de error y el ack los cuenta como fallo.\nconst SKIP = 'http://127.0.0.1:9/no-enviar';\nconst out = [{ json: { kind: 'plan', method: 'POST', url: SKIP, membersListed: listed, presence: [] } }];\npend.linkCandidates.forEach(function (c) {\n  const uid = listed ? byName[c.discordUsername] : undefined;\n  if (!uid) return;\n  out.push({ json: { kind: 'role', where: 'rol ML-temp', method: 'PUT', url: base + '/guilds/' + pend.config.guildId + '/members/' + uid + '/roles/' + pend.config.roleId, reason: 'Primera charla agendada (' + c.bookingId + ')', link: { bookingId: c.bookingId, discordUserId: uid, discordUsername: c.discordUsername } } });\n});\nif (listed) {\n  out[0].json.presence = pend.presenceChecks.map(function (p) { return { bookingId: p.bookingId, present: !!byId[p.discordUserId] }; });\n}\npend.notifications.forEach(function (n) {\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  const where = n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp';\n  if (n.target.type === 'dm' && !dm) {\n    out.push({ json: { kind: 'notification', where: where, notificationId: n.id, method: 'POST', url: SKIP, body: body, skipError: 'No se pudo abrir el DM de Yerco' } });\n    return;\n  }\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  out.push({ json: { kind: 'notification', where: where, notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } });\n});\nreturn out;"
       }
     },
     {
@@ -260,7 +260,8 @@
         "discordBotApi": {
           "name": "Discord Bot account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "id": "c27648e6-d7b1-4ff7-a0de-b36e3e3d4cea",
@@ -341,51 +342,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const items = $('Plan').all().map(function (i) { return i.json; });\nconst ack = $input.first().json;\nconst plan = [];\nitems.forEach(function (i) {\n  if (i.kind === 'role') plan.push('rol ML-temp → ' + i.link.discordUsername + ' (' + i.link.discordUserId + ')');\n  if (i.kind === 'notification') plan.push(i.where + ': ' + i.body.content);\n});\n(ack.notifications || []).forEach(function (n) {\n  plan.push('[tras el ack] ' + (n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp') + ': ' + n.content);\n});\nreturn [{ json: { dryRun: true, miembrosListados: items[0].membersListed, plan: plan, limpieza: $('Pendiente').first().json.cleaned } }];"
-      }
-    },
-    {
-      "id": "8eedb082-9b7e-46f1-8e1c-fd14b094daf3",
-      "name": "¿Es el item de control?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        1980,
-        440
-      ],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.kind }}",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              },
-              "rightValue": "plan"
-            }
-          ],
-          "combinator": "and"
-        }
-      }
-    },
-    {
-      "id": "f6283e6e-fa35-404f-b9e8-67a706f49f9b",
-      "name": "Juntar",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
-      "position": [
-        2420,
-        440
-      ],
-      "parameters": {
-        "mode": "append"
+        "jsCode": "const items = $('Plan').all().map(function (i) { return i.json; });\nconst ack = $input.first().json;\nconst plan = [];\nitems.forEach(function (i) {\n  if (i.kind === 'role') plan.push('rol ML-temp → ' + i.link.discordUsername + ' (' + i.link.discordUserId + ')');\n  if (i.kind === 'notification') plan.push(i.where + ': ' + ((i.body && i.body.content) || '(sin contenido)'));\n});\n(ack.notifications || []).forEach(function (n) {\n  plan.push('[tras el ack] ' + (n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp') + ': ' + n.content);\n});\nreturn [{ json: { dryRun: true, miembrosListados: items[0].membersListed, plan: plan, limpieza: $('Pendiente').first().json.cleaned } }];"
       }
     },
     {
@@ -453,7 +410,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const plan = $('Plan').all().map(function (i) { return i.json; });\nconst res = $input.all().map(function (i) { return i.json; });\nconst meta = plan[0];\nconst links = [];\nconst results = [];\nplan.forEach(function (p, idx) {\n  if (idx === 0) return;\n  const r = res[idx] || {};\n  const st = r.statusCode;\n  const ok = st >= 200 && st < 300;\n  const err = ok ? undefined : 'Discord ' + (st || 'sin respuesta');\n  const retry = r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined;\n  if (p.kind === 'role') links.push({ bookingId: p.link.bookingId, discordUserId: p.link.discordUserId, roleOk: ok, error: err });\n  else results.push({ notificationId: p.notificationId, ok: ok, error: err, retryAfterSeconds: retry });\n});\nreturn [{ json: { payload: { dryRun: false, membersListed: meta.membersListed, links: links, presence: meta.presence, results: results } } }];"
+        "jsCode": "const plan = $('Plan').all().map(function (i) { return i.json; });\n// Los resultados llegan en el mismo orden que la peticion (el item de control va primero).\nconst res = $input.all().map(function (i) { return i.json; });\nconst meta = plan[0];\nconst links = [];\nconst results = [];\nplan.forEach(function (p, idx) {\n  if (idx === 0) return;\n  const r = res[idx] || {};\n  const st = r.statusCode;\n  const ok = !p.skipError && st >= 200 && st < 300;\n  const err = ok ? undefined : (p.skipError || 'Discord ' + (st || 'sin respuesta'));\n  const retry = r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined;\n  if (p.kind === 'role') links.push({ bookingId: p.link.bookingId, discordUserId: p.link.discordUserId, roleOk: ok, error: err });\n  else results.push({ notificationId: p.notificationId, ok: ok, error: err, retryAfterSeconds: retry });\n});\nreturn [{ json: { payload: { dryRun: false, membersListed: meta.membersListed, links: links, presence: meta.presence, results: results } } }];"
       }
     },
     {
@@ -488,7 +445,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const ack = $input.first().json;\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) dm = $('Abrir DM de Yerco').first().json.id;\nconst base = 'https://discord.com/api/v10';\nreturn (ack.notifications || []).map(function (n) {\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  return { json: { kind: 'notification', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } };\n});"
+        "jsCode": "const ack = $input.first().json;\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nconst base = 'https://discord.com/api/v10';\nconst SKIP = 'http://127.0.0.1:9/no-enviar';\nreturn (ack.notifications || []).map(function (n) {\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  if (n.target.type === 'dm' && !dm) {\n    return { json: { kind: 'notification', notificationId: n.id, method: 'POST', url: SKIP, body: body, skipError: 'No se pudo abrir el DM de Yerco' } };\n  }\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  return { json: { kind: 'notification', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } };\n});"
       }
     },
     {
@@ -552,7 +509,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const sent = $('Armar fase 2').all().map(function (i) { return i.json; });\nconst res = $input.all().map(function (i) { return i.json; });\nconst results = sent.map(function (p, idx) {\n  const r = res[idx] || {};\n  const ok = r.statusCode >= 200 && r.statusCode < 300;\n  return { notificationId: p.notificationId, ok: ok, error: ok ? undefined : 'Discord ' + (r.statusCode || 'sin respuesta'), retryAfterSeconds: r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined };\n});\nreturn [{ json: { payload: { dryRun: false, membersListed: true, links: [], presence: [], results: results } } }];"
+        "jsCode": "const sent = $('Armar fase 2').all().map(function (i) { return i.json; });\nconst res = $input.all().map(function (i) { return i.json; });\nconst results = sent.map(function (p, idx) {\n  const r = res[idx] || {};\n  const ok = !p.skipError && r.statusCode >= 200 && r.statusCode < 300;\n  return { notificationId: p.notificationId, ok: ok, error: ok ? undefined : (p.skipError || 'Discord ' + (r.statusCode || 'sin respuesta')), retryAfterSeconds: r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined };\n});\n// Este ack solo confirma envios: sin presencia real no se afirma nada (membersListed: false), asi no se encolan\n// avisos de 15 min con una presencia inventada.\nreturn [{ json: { payload: { dryRun: false, membersListed: false, links: [], presence: [], results: results } } }];"
       }
     },
     {
@@ -717,7 +674,7 @@
         ],
         [
           {
-            "node": "¿Es el item de control?",
+            "node": "Enviar a Discord",
             "type": "main",
             "index": 0
           }
@@ -742,46 +699,6 @@
             "node": "Plan final (no se envia nada)",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "¿Es el item de control?": {
-      "main": [
-        [
-          {
-            "node": "Juntar",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Enviar a Discord",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Juntar": {
-      "main": [
-        [
-          {
-            "node": "Armar ack 1",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Enviar a Discord": {
-      "main": [
-        [
-          {
-            "node": "Juntar",
-            "type": "main",
-            "index": 1
           }
         ]
       ]
@@ -835,6 +752,17 @@
         [
           {
             "node": "Ack 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a Discord": {
+      "main": [
+        [
+          {
+            "node": "Armar ack 1",
             "type": "main",
             "index": 0
           }
