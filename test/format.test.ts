@@ -1,35 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { escapeMarkdown, formatDateEs, formatTime12 } from '../src/format';
+import { dayLabel, localDate, longDate, range, time12 } from '../site/lib/format.js';
 
-describe('fechas', () => {
-  it('formato humano en español', () => {
-    // dom 8 nov 2026, 17:10 COT = 22:10 UTC
-    const ms = Date.parse('2026-11-08T22:10:00Z');
-    expect(formatDateEs(ms, -300, 'hora Colombia')).toBe('dom 8 nov · 5:10 PM (hora Colombia)');
-  });
-  it('sabado correcto', () => {
-    const ms = Date.parse('2026-11-14T22:10:00Z');
-    expect(formatDateEs(ms, -300, 'hora Colombia')).toBe('sáb 14 nov · 5:10 PM (hora Colombia)');
-  });
-  it('12 AM / 12 PM', () => {
-    expect(formatTime12(Date.parse('2026-11-08T17:00:00Z'), -300)).toBe('12:00 PM');
-    expect(formatTime12(Date.parse('2026-11-08T05:05:00Z'), -300)).toBe('12:05 AM');
-    expect(formatTime12(Date.parse('2026-11-08T21:30:00Z'), -300)).toBe('4:30 PM');
-  });
-  it('usa el dia local, no el UTC', () => {
-    // 21:50 COT del 8 es el 9 en UTC
-    expect(formatDateEs(Date.parse('2026-11-09T02:50:00Z'), -300, 'x')).toBe('dom 8 nov · 9:50 PM (x)');
-  });
-});
+const OFF = -300; // hora Colombia
+const utc = (s: string) => Date.parse(s);
 
-describe('escapeMarkdown', () => {
-  it('escapa el markdown y las menciones', () => {
-    expect(escapeMarkdown('**hola** _x_ ~~y~~ `z`')).toBe('\\*\\*hola\\*\\* \\_x\\_ \\~\\~y\\~\\~ \\`z\\`');
-    expect(escapeMarkdown('@everyone <@123> <#456>')).toBe('\\@everyone \\<\\@123\\> \\<\\#456\\>');
-    expect(escapeMarkdown('[a](http://x)')).toBe('\\[a\\]\\(http\\://x\\)');
-    expect(escapeMarkdown('> cita\n# titulo')).toBe('\\> cita\n\\# titulo');
+describe('formato del front (zona de la agenda, no la del navegador)', () => {
+  it('12 a. m. / 12 p. m. / p. m.', () => {
+    expect(time12(utc('2026-11-08T17:00:00Z'), OFF)).toBe('12:00 p. m.');
+    expect(time12(utc('2026-11-08T05:05:00Z'), OFF)).toBe('12:05 a. m.');
+    expect(time12(utc('2026-11-08T21:30:00Z'), OFF)).toBe('4:30 p. m.');
   });
-  it('deja el texto normal intacto', () => {
-    expect(escapeMarkdown('Hola, soy Juan 123')).toBe('Hola, soy Juan 123');
+
+  it('rango de un cupo, incluido el ultimo (que cruza la medianoche UTC)', () => {
+    expect(range(utc('2026-11-08T21:30:00Z'), 40, OFF)).toBe('4:30 p. m. – 5:10 p. m.');
+    expect(range(utc('2026-11-09T02:50:00Z'), 40, OFF)).toBe('9:50 p. m. – 10:30 p. m.');
+  });
+
+  it('fecha larga en español usando el dia local', () => {
+    expect(longDate(utc('2026-11-11T02:50:00Z'), OFF)).toBe('martes 10 de nov'); // 21:50 COT del martes 10
+    expect(longDate(utc('2026-11-14T22:10:00Z'), OFF)).toBe('sábado 14 de nov');
+  });
+
+  it('Hoy / Mañana / Lun 10', () => {
+    const now = utc('2026-11-09T02:00:00Z'); // 21:00 COT del domingo 8
+    expect(localDate(now, OFF)).toBe('2026-11-08');
+    expect(dayLabel('2026-11-08', now, OFF)).toBe('Hoy');
+    expect(dayLabel('2026-11-09', now, OFF)).toBe('Mañana');
+    expect(dayLabel('2026-11-10', now, OFF)).toBe('Mar 10');
   });
 });

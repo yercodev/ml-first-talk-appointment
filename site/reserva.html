@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://dojgxfotawtxitgcppyn.supabase.co; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Tu reserva · Mountain Lords</title>
+  <meta name="theme-color" content="#0F1E3A">
+  <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="wrap">
+    <section class="step done reserva" aria-live="polite">
+      <img class="logo small" src="assets/logo-240.webp" width="120" height="120" alt="Mountain Lords">
+      <h1 class="big" id="r-title">Tu reserva</h1>
+      <p class="when" id="r-when" hidden></p>
+      <p class="lead" id="r-text">Cargando…</p>
+      <div class="actions" id="r-actions" hidden>
+        <button class="btn danger" id="r-cancel" type="button">Cancelar charla</button>
+      </div>
+      <div class="confirm" id="r-confirm" hidden>
+        <p><strong>¿Seguro? El horario queda libre para otra persona.</strong></p>
+        <div class="actions">
+          <button class="btn danger" id="r-yes" type="button">Sí, cancelar</button>
+          <button class="btn ghost" id="r-no" type="button">No, volver</button>
+        </div>
+      </div>
+      <p><a class="btn ghost" id="r-again" href="./" hidden>Reservar otra charla</a></p>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script type="module" src="reserva.js"></script>
+</body>
+</html>

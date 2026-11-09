@@ -1,10 +1,9 @@
-@font-face {
-  font-family: 'Teko';
-  src: url('/fonts/Teko-VariableFont_wght.ttf') format('truetype');
-  font-weight: 300 700;
-  font-style: normal;
-  font-display: swap;
-}
+/* Fuentes propias (OFL): Teko para titulares, Inter para el texto. Sin Google Fonts. */
+@font-face { font-family: 'Teko'; src: url('fonts/teko-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Teko'; src: url('fonts/teko-latin-700-normal.woff2') format('woff2'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-latin-400-normal.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-latin-500-normal.woff2') format('woff2'); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Inter'; src: url('fonts/inter-latin-600-normal.woff2') format('woff2'); font-weight: 600; font-style: normal; font-display: swap; }
 
 :root {
   --blue: #2563eb;
@@ -140,6 +139,8 @@ main { padding-bottom: 24px; }
 @media (min-width: 640px) { .row { grid-template-columns: 1fr 1fr; } }
 label { display: block; font-weight: 600; font-size: 0.93rem; margin-bottom: 6px; }
 .opt { font-weight: 400; color: var(--steel); }
+.checkline { display: flex; gap: 12px; align-items: flex-start; font-weight: 400; font-size: 0.9rem; color: var(--steel); cursor: pointer; margin-bottom: 0; }
+.checkline input { flex: 0 0 22px; width: 22px; height: 22px; margin: 1px 0 0; accent-color: var(--blue); }
 input[type='text'], select, textarea {
   width: 100%; min-height: 48px; padding: 11px 13px;
   background: var(--bg); color: var(--white);
@@ -229,3 +230,30 @@ input[type='password'] { width: 100%; min-height: 48px; padding: 11px 13px; back
 .mini { min-height: 38px; padding: 4px 14px; border-radius: 9px; border: 1px solid var(--line); background: transparent; color: var(--white); font: inherit; font-size: 0.85rem; font-weight: 500; cursor: pointer; }
 .mini:hover { border-color: var(--steel); }
 .mini.danger { color: #fca5a5; border-color: rgba(239, 68, 68, 0.5); }
+
+/* Paginas auxiliares */
+.lead { margin: 12px auto 0; max-width: 56ch; color: var(--steel); }
+.logo.small { width: 96px; height: 96px; margin: 0 auto 8px; display: block; }
+.reserva { margin-top: 32px; }
+.reserva .actions, .confirm .actions { justify-content: center; }
+.reserva .btn { width: auto; }
+.confirm { margin-top: 12px; }
+.legal h2 { font-size: 1.5rem; margin: 18px 0 6px; display: block; }
+.legal p { color: var(--steel); }
+.notice { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.day-acts { margin: -4px 0 10px; }
+.foot a { color: var(--steel); }
+
+/* Ajustes de movil y enlaces */
+a { color: #7fa8ff; }
+.slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 560px) { .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .slot .t { font-size: 0.78rem; letter-spacing: -0.01em; } .slot { padding: 8px 6px; } }
+
+/* Admin compacto: los cupos libres y bloqueados son fichas; las reservas, tarjetas */
+.chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.chip { min-height: 36px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--white); font: inherit; font-size: 0.8rem; cursor: pointer; }
+.chip:hover { border-color: var(--steel); }
+.chip.blocked { border-style: dashed; color: var(--steel); background: rgba(148, 163, 184, 0.1); }
+.chip.past { opacity: 0.35; cursor: default; }
+.chip-legend { color: var(--steel); font-size: 0.78rem; margin: 2px 0 0; }
