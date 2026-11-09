@@ -27,12 +27,12 @@ Todo lo redacta SQL (`mountain_lords.*` en la migración) y lo prueba el CI:
 | Mensaje | Destino |
 |---|---|
 | Nueva charla (con Riot ID, rol y mensaje) | DM a Yerco |
-| Entró a YercoVerse y ya tiene ML-temp | DM a Yerco |
-| Bienvenida, mencionando al aspirante | #ml-temp |
+| Ya tiene ML-temp (el bot puso el rol) | DM a Yerco |
+| Bienvenida al proceso, mencionando al aspirante (con la hora en formato de Discord) | #ml-temp |
 | En 15 min (con la presencia comprobada) | DM a Yerco |
 | Tu charla empieza en 15 minutos | #ml-temp, solo si el aspirante está en el servidor |
 | Cancelada (solo si cancela el aspirante) | DM a Yerco |
-| Agenda de hoy (desde las 4:00 p. m., solo si hay charlas) | DM a Yerco |
+| Agenda de hoy (desde las 4:00 PM, solo si hay charlas) | DM a Yerco |
 
 También **pone el rol ML-temp** (`PUT /guilds/{guild}/members/{user}/roles/{rol}`). No lo quita nunca. Lo que escribe el aspirante va escapado y con `allowed_mentions` restringido; su mensaje solo aparece en los DMs a Yerco.
 
@@ -41,11 +41,11 @@ También **pone el rol ML-temp** (`PUT /guilds/{guild}/members/{user}/roles/{rol
 Todo está en `mountain_lords.settings` (una fila). Se cambia con un `UPDATE` en el SQL Editor, sin desplegar nada:
 
 ```sql
-update mountain_lords.settings set slot_minutes = 30, day_end = '21:30';   -- 10 cupos de 4:30 a 9:30 p. m.
+update mountain_lords.settings set slot_minutes = 30, day_end = '21:30';   -- 10 cupos de 4:30 a 9:30 PM
 update mountain_lords.settings set window_days = 21, min_lead_minutes = 120;
 ```
 
-Campos: `utc_offset`, `day_start`, `day_end`, `slot_minutes`, `window_days`, `min_lead_minutes`, `max_bookings_per_ip_per_day`, `retention_days`, `reminder_minutes`, `daily_agenda_time`, `lease_seconds`, y los ids de Discord. Las reservas existentes no se mueven.
+Campos: `utc_offset`, `day_start`, `day_end`, `slot_minutes`, `window_days`, `min_lead_minutes`, `max_bookings_per_ip_per_day`, `retention_days`, `reminder_minutes`, `daily_agenda_time`, `lease_seconds`, y los ids de Discord. Las reservas existentes no se mueven. La hora del chip «Todos los días desde las 4:30 PM» de la portada sale de `day_start` (la lee de `ml_slots`): no hay que tocar el HTML. La versión del aviso de privacidad que se guarda en cada reserva es `privacy_version` (también en `settings`): cámbiala cuando se cambie el aviso.
 
 ## Correrlo en local (sin Supabase ni Discord)
 

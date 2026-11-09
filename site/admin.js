@@ -42,6 +42,17 @@ const dayTitle = (date) => {
   return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
 };
 
+// Tipos de aviso legibles para Yerco
+const KIND_LABEL = {
+  new: 'DM nueva charla',
+  joined: 'DM ya tiene ML-temp',
+  welcome: 'Bienvenida en #ml-temp',
+  'reminder-dm': 'DM 15 min',
+  'reminder-ch': 'Aviso 15 min en #ml-temp',
+  cancel: 'DM cancelación',
+  agenda: 'DM agenda del día',
+};
+
 function show(loggedIn) {
   $('login').hidden = loggedIn;
   $('panel').hidden = !loggedIn;
@@ -64,11 +75,7 @@ function renderBooked(s) {
   const head = el('div', { class: 'head' }, el('span', { class: 'time' }, `${time(s.start)} – ${time(s.end)}`));
   head.append(el('span', { class: 'badge blue' }, 'Reservado'));
   head.append(
-    el(
-      'span',
-      { class: b.inServer ? 'badge ok' : 'badge warn' },
-      b.inServer ? `En YercoVerse${b.roleAssignedAt ? ' · rol puesto ' + time(b.roleAssignedAt) : ''}` : 'Pendiente de entrar',
-    ),
+    el('span', { class: b.inServer ? 'badge ok' : 'badge warn' }, b.inServer ? `Con ML-temp${b.roleAssignedAt ? ' · ' + time(b.roleAssignedAt) : ''}` : 'Sin ML-temp aún'),
   );
   box.append(head);
   const who = el('div', { class: 'who' }, el('strong', {}, `${b.displayName} · ${b.discordUsername}`));
@@ -77,7 +84,11 @@ function renderBooked(s) {
   if (b.message) who.append(el('span', { class: 'note' }, b.message)); // textContent: nunca HTML
   box.append(who);
   box.append(
-    el('div', { class: 'acts' }, el('button', { class: 'mini danger', type: 'button', onclick: () => act('ml_admin_cancel', { p_booking_id: b.id }, `¿Cancelar la charla de ${b.displayName}?`, () => 'Charla cancelada.') }, 'Cancelar')),
+    el(
+      'div',
+      { class: 'acts' },
+      el('button', { class: 'mini danger', type: 'button', onclick: () => act('ml_admin_cancel', { p_booking_id: b.id }, `¿Cancelar la charla de ${b.displayName}? El bot no le avisa: si hace falta, escríbele tú.`, () => 'Charla cancelada.') }, 'Cancelar'),
+    ),
   );
   return box;
 }
@@ -110,7 +121,7 @@ function renderIntegration(d) {
   failed.replaceChildren();
   if (d.failedNotifications.length) {
     failed.append(el('strong', {}, `${d.failedNotifications.length} ${d.failedNotifications.length === 1 ? 'aviso no se pudo enviar' : 'avisos no se pudieron enviar'}`));
-    for (const n of d.failedNotifications) failed.append(el('div', {}, `${n.kind} · ${time(n.at)}${n.error ? ' · ' + n.error : ''}`));
+    for (const n of d.failedNotifications) failed.append(el('div', {}, `${KIND_LABEL[n.kind] || n.kind} · ${time(n.at)}${n.error ? ' · ' + n.error : ''}`));
   }
 }
 
@@ -143,10 +154,12 @@ async function load(resetStatus = true) {
     const booked = day.slots.filter((s) => s.state === 'booked').length;
     total += booked;
     const title = el('h2', {}, dayTitle(day.date), el('small', {}, booked ? `${booked} charla${booked > 1 ? 's' : ''}` : 'sin charlas'));
+    const blockMsg = (x) =>
+      `Cupos bloqueados: ${x.blocked}.` + (x.skippedBooked ? (x.skippedBooked === 1 ? ' Queda 1 charla ese día.' : ` Quedan ${x.skippedBooked} charlas ese día.`) : '');
     const dayActs = el(
       'div',
       { class: 'acts day-acts' },
-      el('button', { class: 'mini', type: 'button', onclick: () => act('ml_admin_block', { p_date: day.date }, null, (x) => (x.skippedBooked ? `Bloqueados ${x.blocked} cupos. Queda ${x.skippedBooked} charla${x.skippedBooked > 1 ? 's' : ''} ese día.` : `Bloqueados ${x.blocked} cupos.`)) }, 'Bloquear el día'),
+      el('button', { class: 'mini', type: 'button', onclick: () => act('ml_admin_block', { p_date: day.date }, null, blockMsg) }, 'Bloquear el día'),
       el('button', { class: 'mini', type: 'button', onclick: () => act('ml_admin_unblock', { p_date: day.date }) }, 'Desbloquear el día'),
     );
     const sec = el('section', { class: 'dayblock' }, title, dayActs);

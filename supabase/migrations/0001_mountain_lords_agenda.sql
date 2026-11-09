@@ -46,6 +46,7 @@ create table if not exists mountain_lords.settings (
   discord_invite_url           text    not null default 'https://discord.gg/9m2MhhgPHv',
   public_base_url              text    not null default 'https://yercodev.github.io/ml-first-talk-appointment/',
   ip_hash_salt                 text    not null default encode(extensions.gen_random_bytes(16), 'hex'),
+  privacy_version              text    not null default '2026-11-10',
   admin_key_hash               text    not null default '',
   allow_fake_now               boolean not null default false,
   fake_now                     timestamptz
@@ -69,8 +70,11 @@ create table if not exists mountain_lords.booking (
   created_at         timestamptz not null default now(),
   discord_user_id    text,
   role_assigned_at   timestamptz,
-  welcome_sent_at    timestamptz
+  welcome_sent_at    timestamptz,
+  privacy_version    text
 );
+alter table mountain_lords.settings add column if not exists privacy_version text not null default '2026-11-10';
+alter table mountain_lords.booking add column if not exists privacy_version text;
 -- D3: un cupo solo puede tener UNA reserva confirmada (barrera final contra las carreras).
 create unique index if not exists booking_one_per_slot on mountain_lords.booking (slot_start) where status = 'confirmed';
 create index if not exists booking_user_idx on mountain_lords.booking (discord_username, status);
@@ -165,7 +169,7 @@ $$;
 -- Fechas en espanol con listas propias (to_char TM depende del lc_time del servidor).
 create or replace function mountain_lords.fmt_time(p_ts timestamptz) returns text
 language sql stable set search_path = '' as $$
-  select to_char(l, 'FMHH12:MI') || case when extract(hour from l) < 12 then ' a. m.' else ' p. m.' end
+  select to_char(l, 'FMHH12:MI') || case when extract(hour from l) < 12 then ' AM' else ' PM' end
   from (select mountain_lords.to_local(p_ts) as l) x
 $$;
 
@@ -313,7 +317,7 @@ begin
     'Nueva charla: ' || mountain_lords.md_escape(p_b.display_name) || ' (' || mountain_lords.md_escape(p_b.discord_username) || '), '
       || mountain_lords.fmt_short(p_b.slot_start) || E'\n'
       || case when v_extra <> '' then v_extra || E'\n' else '' end
-      || case when p_b.discord_user_id is null then 'Aún no está en YercoVerse.' else 'Ya está en YercoVerse.' end || E'\n'
+      || case when p_b.discord_user_id is null then 'Aún no tiene ML-temp.' else 'Ya tiene ML-temp.' end || E'\n'
       || 'Agenda: ' || v_s.public_base_url || 'admin.html',
     jsonb_build_object('parse', '[]'::jsonb), 4);
 end $$;
@@ -388,7 +392,7 @@ begin
   if v_user ~ '#[0-9]{1,4}$' then
     v_det := v_det || jsonb_build_object('discordUsername', 'Ese es el formato antiguo de Discord. Abre tu perfil y copia tu usuario actual.');
   elsif v_user !~ '^[a-z0-9_.]{2,32}$' or position('..' in v_user) > 0 then
-    v_det := v_det || jsonb_build_object('discordUsername', 'Escribe tu usuario de Discord: de 2 a 32 caracteres, solo minúsculas, números, punto y guion bajo, sin espacios.');
+    v_det := v_det || jsonb_build_object('discordUsername', 'Escribe tu usuario de Discord: de 2 a 32 caracteres, solo letras, números, punto y guion bajo, sin espacios.');
   end if;
 
   -- Nombre o nick
@@ -463,10 +467,10 @@ begin
   v_token := rtrim(translate(encode(extensions.gen_random_bytes(32), 'base64'), '+/', '-_'), '=');
   begin
     insert into mountain_lords.booking
-      (slot_start, slot_end, discord_username, display_name, riot_id, main_role, message, manage_token_hash, ip_hash, created_at)
+      (slot_start, slot_end, discord_username, display_name, riot_id, main_role, message, manage_token_hash, ip_hash, created_at, privacy_version)
     values
       (p_slot_start, p_slot_start + s.slot_minutes * interval '1 minute', v_user, v_name, v_riot, v_role, v_msg,
-       mountain_lords.sha256_hex(v_token), v_iph, v_now)
+       mountain_lords.sha256_hex(v_token), v_iph, v_now, s.privacy_version)
     returning * into v_row;
   exception when unique_violation then
     perform mountain_lords.fail(409, 'slot_taken', 'Alguien acaba de tomar ese horario.');
@@ -495,7 +499,8 @@ begin
     'id', v_b.id, 'slotStart', mountain_lords.iso(v_b.slot_start), 'slotEnd', mountain_lords.iso(v_b.slot_end),
     'discordUsername', v_b.discord_username, 'displayName', v_b.display_name,
     'status', v_b.status, 'cancelledBy', v_b.cancelled_by,
-    'started', v_b.slot_start <= mountain_lords.clock()));
+    'started', v_b.slot_start <= mountain_lords.clock()),
+    'inviteUrl', (select discord_invite_url from mountain_lords.settings));
 end $$;
 
 create or replace function public.ml_booking_cancel(p_token text) returns jsonb
@@ -519,7 +524,7 @@ begin
   delete from mountain_lords.notification where booking_id = v_b.id and status in ('pending', 'leased') and kind not in ('new');
   perform mountain_lords.enqueue('cancel:' || v_b.id, 'cancel', v_b.id, mountain_lords.dm_target(),
     'Cancelada: ' || mountain_lords.md_escape(v_b.display_name) || ' (' || mountain_lords.md_escape(v_b.discord_username) || '), '
-      || mountain_lords.fmt_short(v_b.slot_start) || ' El horario queda libre.'
+      || mountain_lords.fmt_short(v_b.slot_start) || '. El horario queda libre.'
       || case when v_b.role_assigned_at is not null then E'\nYa tenía ML-temp y lo conserva.' else '' end,
     jsonb_build_object('parse', '[]'::jsonb), 4);
   return jsonb_build_object('status', 'cancelled', 'alreadyCancelled', false);
@@ -714,7 +719,7 @@ begin
      and not exists (select 1 from mountain_lords.notification where dedupe_key = 'agenda:' || v_today::text) then
     select count(*), string_agg(
         mountain_lords.fmt_time(b.slot_start) || ' · ' || mountain_lords.md_escape(b.display_name)
-        || ' (' || mountain_lords.md_escape(b.discord_username) || ') · ya entró: '
+        || ' (' || mountain_lords.md_escape(b.discord_username) || ') · ML-temp: '
         || case when b.discord_user_id is not null then 'sí' else 'no' end, E'\n' order by b.slot_start)
       into v_count, v_lines
       from mountain_lords.booking b
@@ -814,12 +819,13 @@ begin
     continue when v_b.id is null;
     v_linked := v_linked || v_b.id;
     perform mountain_lords.enqueue('joined:' || v_b.id, 'joined', v_b.id, mountain_lords.dm_target(),
-      'Entró a YercoVerse: ' || mountain_lords.md_escape(v_b.display_name) || ' (' || mountain_lords.md_escape(v_b.discord_username)
-        || '), ya tiene ML-temp. Charla: ' || mountain_lords.fmt_short(v_b.slot_start),
+      'Ya tiene ML-temp: ' || mountain_lords.md_escape(v_b.display_name) || ' (' || mountain_lords.md_escape(v_b.discord_username)
+        || '). Charla: ' || mountain_lords.fmt_short(v_b.slot_start) || '.',
       jsonb_build_object('parse', '[]'::jsonb), 4);
     perform mountain_lords.enqueue('welcome:' || v_b.id, 'welcome', v_b.id, mountain_lords.channel_target(),
-      '<@' || v_b.discord_user_id || '> bienvenido a Mountain Lords. Tu charla con Yerco es el ' || mountain_lords.fmt_long_day(v_b.slot_start)
-        || ' a las ' || mountain_lords.fmt_time(v_b.slot_start) || ' (hora Colombia) en <#' || v_voice
+      '<@' || v_b.discord_user_id || '> te damos la bienvenida al proceso de Mountain Lords. Tu charla con Yerco es el ' || mountain_lords.fmt_long_day(v_b.slot_start)
+        || ' a las ' || mountain_lords.fmt_time(v_b.slot_start) || ' (hora Colombia; en tu hora, <t:'
+        || extract(epoch from v_b.slot_start)::bigint || ':t>) en <#' || v_voice
         || '>. Aquí te avisamos ' || s.reminder_minutes || ' minutos antes.',
       jsonb_build_object('parse', '[]'::jsonb, 'users', jsonb_build_array(v_b.discord_user_id)));
   end loop;
@@ -851,13 +857,14 @@ begin
       v_extra := mountain_lords.data_lines(v_b);
       perform mountain_lords.enqueue('reminder-dm:' || v_b.id, 'reminder-dm', v_b.id, mountain_lords.dm_target(),
         'En ' || s.reminder_minutes || ' min: ' || mountain_lords.md_escape(v_b.display_name) || ' (' || mountain_lords.md_escape(v_b.discord_username)
-          || '), ' || mountain_lords.fmt_time(v_b.slot_start) || ' Está en YercoVerse: ' || case when v_present then 'sí' else 'no' end || '.'
+          || '), ' || mountain_lords.fmt_time(v_b.slot_start) || '. Está en YercoVerse: ' || case when v_present then 'sí' else 'no' end || '.'
           || case when v_extra <> '' then E'\n' || v_extra else '' end,
         jsonb_build_object('parse', '[]'::jsonb), 4);
       if v_present and (v_b.discord_user_id is not null) then
         perform mountain_lords.enqueue('reminder-ch:' || v_b.id, 'reminder-ch', v_b.id, mountain_lords.channel_target(),
           '<@' || v_b.discord_user_id || '> tu charla con Yerco empieza en ' || s.reminder_minutes || ' minutos, a las '
-            || mountain_lords.fmt_time(v_b.slot_start) || ', en <#' || v_voice || '>.',
+            || mountain_lords.fmt_time(v_b.slot_start) || ' (hora Colombia; en tu hora, <t:'
+            || extract(epoch from v_b.slot_start)::bigint || ':t>), en <#' || v_voice || '>.',
           jsonb_build_object('parse', '[]'::jsonb, 'users', jsonb_build_array(v_b.discord_user_id)));
       end if;
     end loop;

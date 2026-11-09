@@ -7,7 +7,7 @@
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>Primera charla · Mountain Lords</title>
-  <meta name="description" content="Reserva tu primera charla de 40 minutos con Mountain Lords, equipo de esports de VALORANT. Elige día y hora y entra por Discord.">
+  <meta name="description" content="El primer paso para jugar en Mountain Lords, equipo de esports de VALORANT: una charla de 40 minutos por voz en Discord con Yerco. Elige día y hora.">
   <meta name="theme-color" content="#0F1E3A">
   <link rel="canonical" href="https://yercodev.github.io/ml-first-talk-appointment/">
   <link rel="icon" type="image/png" sizes="64x64" href="favicon-64.png">
@@ -16,14 +16,14 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Mountain Lords">
   <meta property="og:title" content="Primera charla · Mountain Lords">
-  <meta property="og:description" content="40 minutos por voz en Discord con Yerco. Elige día y hora.">
+  <meta property="og:description" content="El primer paso para jugar en Mountain Lords: 40 minutos por voz en Discord con Yerco. Elige día y hora.">
   <meta property="og:url" content="https://yercodev.github.io/ml-first-talk-appointment/">
   <meta property="og:image" content="https://yercodev.github.io/ml-first-talk-appointment/og.jpg">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Primera charla · Mountain Lords">
-  <meta name="twitter:description" content="40 minutos por voz en Discord con Yerco.">
+  <meta name="twitter:description" content="El primer paso para jugar en Mountain Lords: 40 minutos por voz en Discord con Yerco. Elige día y hora.">
   <meta name="twitter:image" content="https://yercodev.github.io/ml-first-talk-appointment/og.jpg">
 
   <link rel="stylesheet" href="styles.css">
@@ -36,11 +36,11 @@
       <img class="logo" src="assets/logo-480.webp" srcset="assets/logo-240.webp 240w, assets/logo-480.webp 480w" sizes="(min-width: 720px) 200px, 150px" width="480" height="480" alt="Mountain Lords">
       <div>
         <h1>Agenda tu primera charla</h1>
-        <p class="sub">40 minutos por voz en Discord con Yerco. Elige día y hora (hora Colombia).</p>
+        <p class="sub">El primer paso para jugar en Mountain Lords: una charla por voz con Yerco, fundador del equipo.</p>
         <ul class="chips" aria-label="Datos de la charla">
-          <li>Todos los días desde las 4:30 p. m. <span class="muted">(hora Colombia)</span></li>
+          <li id="chip-start">Todos los días desde las 4:30&nbsp;PM <span class="muted">(hora Colombia)</span></li>
           <li>40 minutos</li>
-          <li>Por Discord</li>
+          <li>En Discord (YercoVerse)</li>
         </ul>
       </div>
     </div>
@@ -70,7 +70,7 @@
           <div class="field">
             <label for="discordUsername">Usuario de Discord</label>
             <input id="discordUsername" type="text" required maxlength="40" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="lord.aim" aria-describedby="discordUsername-help discordUsername-err">
-            <p class="help" id="discordUsername-help">Tu nombre de usuario, no el nombre que se ve. En Discord, toca tu foto: aparece debajo de tu nombre. Ej.: lord.aim</p>
+            <p class="help" id="discordUsername-help">Es tu nombre de usuario, no tu nombre para mostrar. En Discord, toca tu foto de perfil: aparece debajo de tu nombre. Ej.: lord.aim</p>
             <p class="err" id="discordUsername-err" role="alert"></p>
           </div>
           <div class="field">
@@ -105,7 +105,7 @@
           <div class="field">
             <label class="checkline" for="privacyAccepted">
               <input id="privacyAccepted" type="checkbox" required aria-describedby="privacyAccepted-err">
-              <span>Acepto que Mountain Lords guarde estos datos solo para agendar la charla y darme acceso a #ml-temp. Se borran 30 días después de la charla. <a href="privacidad.html">Aviso de privacidad</a></span>
+              <span>Acepto el <a href="privacidad.html" target="_blank" rel="noopener">aviso de privacidad</a> y autorizo a Miguel G (Yerco) a usar estos datos solo para agendar y gestionar mi charla y darme acceso a #ml-temp en YercoVerse. La agenda los borra 30 días después de la charla. Si soy menor de 18, mi madre, padre o acudiente lo autoriza.</span>
             </label>
             <p class="err" id="privacyAccepted-err" role="alert"></p>
           </div>
@@ -121,15 +121,15 @@
 
     <section class="step done" id="view-done" aria-live="polite" hidden>
       <div class="check" aria-hidden="true">✓</div>
-      <h2 class="big" id="done-title" tabindex="-1">Listo: tu charla está agendada.</h2>
+      <h2 class="big" id="done-title" tabindex="-1">Listo: tu charla está agendada</h2>
       <p class="when" id="done-when"></p>
       <p class="lead" id="done-user"></p>
-      <p class="lead">Entra a YercoVerse en Discord. En menos de un minuto te damos el rol ML-temp y verás #ml-temp.</p>
+      <p class="lead">Entra a YercoVerse, el Discord de Yerco. Al entrar, el bot te da el rol ML-temp (suele tardar un minuto) y verás #ml-temp, donde te avisamos 15 minutos antes de la charla. Si Discord te pide aceptar las reglas, acéptalas: sin eso el rol no llega.</p>
       <a class="btn primary xl" id="invite" href="#" target="_blank" rel="noopener noreferrer">Entrar a YercoVerse</a>
       <div class="cancel-box">
-        <p><strong>Guarda este enlace: es la única forma de cancelar tu charla.</strong></p>
+        <p><strong>Guarda este enlace: con él puedes ver o cancelar tu charla, y no te lo volvemos a mostrar.</strong></p>
         <div class="copy-row">
-          <input id="manage-link" type="text" readonly aria-label="Enlace para cancelar">
+          <input id="manage-link" type="text" readonly aria-label="Enlace de tu reserva">
           <button class="btn ghost" id="copy" type="button">Copiar enlace</button>
         </div>
       </div>
@@ -137,7 +137,7 @@
   </main>
 
   <footer class="foot wrap">
-    <p>Mountain Lords · Equipo de esports de VALORANT · <a href="privacidad.html">Privacidad</a></p>
+    <p>Mountain Lords · Equipo de esports de VALORANT · <a id="foot-invite" href="https://discord.gg/9m2MhhgPHv" target="_blank" rel="noopener noreferrer">YercoVerse</a> · <a href="privacidad.html">Privacidad</a></p>
   </footer>
 
   <script src="config.js"></script>

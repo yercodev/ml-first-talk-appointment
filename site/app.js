@@ -15,23 +15,28 @@ function el(tag, attrs = {}, ...children) {
   return node;
 }
 
-// ---- Fechas (siempre en la zona de la agenda, no la del navegador)
+// ---- Fechas (siempre en la zona de la agenda; la del visitante solo como ayuda)
 const ms = (iso) => Date.parse(iso);
 const time12 = (iso) => fmt.time12(ms(iso), state.offset);
 const range = (slot) => `${time12(slot.start)} – ${time12(slot.end)}`;
 const longDate = (iso) => fmt.longDate(ms(iso), state.offset);
 const dayLabel = (dateStr) => fmt.dayLabel(dateStr, ms(state.data.now), state.offset);
-function visitorTime(iso) {
-  if (-new Date(ms(iso)).getTimezoneOffset() === state.offset) return null;
-  return new Date(ms(iso)).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' });
-}
+const visitorOffset = (iso) => -new Date(ms(iso)).getTimezoneOffset();
+const visitorLocal = (iso) => fmt.visitorLocal(ms(iso), state.offset, visitorOffset(iso));
+const suffix = (iso) => fmt.colombiaSuffix(ms(iso), state.offset, visitorOffset(iso));
 
 async function loadSlots() {
   const r = await rpc('ml_slots');
   if (!r.ok || !r.data.days) throw new Error('slots');
   state.data = r.data;
   state.offset = fmt.offsetMinutes(r.data.utcOffset);
-  if (r.data.inviteUrl) $('invite').href = r.data.inviteUrl;
+  if (r.data.inviteUrl) {
+    $('invite').href = r.data.inviteUrl;
+    $('foot-invite').href = r.data.inviteUrl;
+  }
+  // El chip sale de la configuracion (day_start), no de un texto fijo.
+  const first = r.data.days[0]?.slots[0];
+  if (first) $('chip-start').firstChild.textContent = `Todos los días desde las ${time12(first.start)} `;
 }
 
 // ---- Dias, horas y formulario
@@ -69,21 +74,21 @@ function renderSlots() {
   const day = state.data.days.find((d) => d.date === state.day);
   $('step-time').hidden = !day;
   if (!day) return;
-  const other = day.slots[0] && visitorTime(day.slots[0].start);
+  const other = day.slots[0] && visitorLocal(day.slots[0].start);
   $('tz-note').textContent = other
-    ? 'Horarios en hora Colombia. Tu navegador está en otra zona: mostramos tu hora debajo de cada cupo.'
-    : 'Horarios en hora Colombia.';
+    ? 'Todas las horas son de Colombia. Debajo de cada una ves la hora de tu zona.'
+    : 'Todas las horas son de Colombia.';
   const box = $('slots');
   box.replaceChildren();
   for (const s of day.slots) {
-    const mine = visitorTime(s.start);
+    const mine = visitorLocal(s.start);
     const btn = el(
       'button',
       { type: 'button', class: 'slot', disabled: !s.available, 'aria-pressed': String(state.slot === s.start), onclick: () => selectSlot(s) },
-      el('span', { class: 't' }, range(s)),
+      el('span', { class: 't' }, time12(s.start)),
     );
     if (!s.available) btn.append(el('span', { class: 'l' }, 'No disponible'));
-    else if (mine) btn.append(el('span', { class: 'l' }, `Tu hora: ${mine}`));
+    else if (mine) btn.append(el('span', { class: 'l' }, `Tu hora: ${mine.time}${mine.day ? ` (${mine.day})` : ''}`));
     box.append(btn);
   }
 }
@@ -93,7 +98,7 @@ function selectSlot(s) {
   renderSlots();
   $('summary').replaceChildren(
     document.createTextNode(`${longDate(s.start)} · ${range(s)} `),
-    el('span', { class: 'muted' }, '(hora Colombia)'),
+    el('span', { class: 'muted' }, suffix(s.start)),
   );
   const wasHidden = $('step-form').hidden;
   $('step-form').hidden = false;
@@ -158,15 +163,15 @@ async function submitBooking(ev) {
     });
     const d = r.data || {};
     if (r.ok && d.booking) return showDone(d);
-    if (r.status === 0) return formError('No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.');
+    if (r.status === 0) return formError('No pudimos conectar. Revisa tu internet e inténtalo de nuevo.');
     if (d.code === 'validation_error') return showFieldErrors(d.details);
     if (d.code === 'slot_taken') return await refreshAfterConflict('Alguien acaba de tomar ese horario. Elige otro.');
     if (d.code === 'slot_not_bookable') return await refreshAfterConflict('Ese horario ya no se puede reservar. Elige otro.');
     if (d.code === 'already_booked') {
-      return formError('Ese usuario de Discord ya tiene una charla agendada. Si es tuya y quieres cambiarla, cancélala con tu enlace y vuelve a reservar.');
+      return formError('Ese usuario de Discord ya tiene una charla agendada. Para cambiarla, cancélala con tu enlace y vuelve a reservar. Si perdiste el enlace o no la agendaste tú, escríbele a Yerco en YercoVerse.');
     }
-    if (d.code === 'rate_limited') return formError('Hoy ya se hicieron demasiadas reservas desde esta conexión. Inténtalo mañana o escríbenos en YercoVerse.');
-    formError('No pudimos procesar la reserva. Recarga la página e inténtalo de nuevo.');
+    if (d.code === 'rate_limited') return formError('Hoy ya se hicieron demasiadas reservas desde esta conexión. Inténtalo mañana o escríbele a Yerco en YercoVerse.');
+    formError('No pudimos procesar la reserva. Recarga la página e inténtalo de nuevo. Si vuelve a pasar, escríbele a Yerco en YercoVerse.');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Reservar charla';
@@ -177,8 +182,8 @@ function showDone(d) {
   const b = d.booking;
   $('booking-flow').hidden = true;
   $('view-done').hidden = false;
-  $('done-when').textContent = `${longDate(b.slotStart)} · ${time12(b.slotStart)} (hora Colombia) · 40 min por voz en 🔊 ML-TEMP`;
-  $('done-user').textContent = `Usuario de Discord: ${b.discordUsername}. ¿Está bien escrito? Con ese usuario te damos el acceso. Si no, cancela y reserva otra vez.`;
+  $('done-when').textContent = `${longDate(b.slotStart)} · ${time12(b.slotStart)} ${suffix(b.slotStart)} · 40 min por voz en 🔊 ML-TEMP`;
+  $('done-user').textContent = `Usuario de Discord: ${b.discordUsername}. Con ese usuario te damos el acceso. ¿Está bien escrito? Si no, cancela con el enlace de abajo y reserva otra vez.`;
   // El token va en el fragmento (#): no viaja al servidor ni sale en ningun Referer.
   $('manage-link').value = new URL(`reserva.html#${d.manageToken}`, location.href).href;
   // El foco pasa al titulo de la confirmacion (teclado y lectores de pantalla).

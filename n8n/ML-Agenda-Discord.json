@@ -225,7 +225,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const pend = $('Pendiente').first().json;\n// Canal de DM de Yerco. Si no se pudo abrir (dm = null), los DMs se marcan como fallidos (cuentan intento),\n// pero los roles y los mensajes al canal siguen su curso.\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nlet members = [];\nlet listed = false;\nif ($('Miembros').isExecuted) {\n  members = $('Miembros').all().map(function (i) { return i.json; });\n  listed = members.length > 0 && members.every(function (m) { return m.user && !m.error; });\n}\n// Se compara el nombre de USUARIO (nunca el visible) y se ignoran los bots.\nconst byName = {};\nconst byId = {};\nmembers.forEach(function (m) {\n  if (!m.user || m.user.bot) return;\n  byName[String(m.user.username).toLowerCase()] = m.user.id;\n  byId[m.user.id] = true;\n});\nconst base = 'https://discord.com/api/v10';\n// Peticion que nunca llega a ningun sitio (conexion rechazada): sirve para el item de control y para los\n// DMs sin canal; el nodo HTTP continua con un item de error y el ack los cuenta como fallo.\nconst SKIP = 'http://127.0.0.1:9/no-enviar';\nconst out = [{ json: { kind: 'plan', method: 'POST', url: SKIP, membersListed: listed, presence: [] } }];\npend.linkCandidates.forEach(function (c) {\n  const uid = listed ? byName[c.discordUsername] : undefined;\n  if (!uid) return;\n  out.push({ json: { kind: 'role', where: 'rol ML-temp', method: 'PUT', url: base + '/guilds/' + pend.config.guildId + '/members/' + uid + '/roles/' + pend.config.roleId, reason: 'Primera charla agendada (' + c.bookingId + ')', link: { bookingId: c.bookingId, discordUserId: uid, discordUsername: c.discordUsername } } });\n});\nif (listed) {\n  out[0].json.presence = pend.presenceChecks.map(function (p) { return { bookingId: p.bookingId, present: !!byId[p.discordUserId] }; });\n}\npend.notifications.forEach(function (n) {\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  const where = n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp';\n  if (n.target.type === 'dm' && !dm) {\n    out.push({ json: { kind: 'notification', where: where, notificationId: n.id, method: 'POST', url: SKIP, body: body, skipError: 'No se pudo abrir el DM de Yerco' } });\n    return;\n  }\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  out.push({ json: { kind: 'notification', where: where, notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } });\n});\nreturn out;"
+        "jsCode": "const pend = $('Pendiente').first().json;\n// Canal de DM de Yerco. Si no se pudo abrir (dm = null), esos avisos se marcan como fallidos (dm_unavailable)\n// directamente en el ack, sin hacer ninguna peticion; los roles y los mensajes a #ml-temp siguen su curso.\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nlet members = [];\nlet listed = false;\nif ($('Miembros').isExecuted) {\n  members = $('Miembros').all().map(function (i) { return i.json; });\n  listed = members.length > 0 && members.every(function (m) { return m.user && !m.error; });\n}\n// Se compara el nombre de USUARIO (nunca el visible) y se ignoran los bots.\nconst byName = {};\nconst byId = {};\nmembers.forEach(function (m) {\n  if (!m.user || m.user.bot) return;\n  byName[String(m.user.username).toLowerCase()] = m.user.id;\n  byId[m.user.id] = true;\n});\nconst base = 'https://discord.com/api/v10';\nconst requests = [];\nconst failed = [];\npend.linkCandidates.forEach(function (c) {\n  const uid = listed ? byName[c.discordUsername] : undefined;\n  if (!uid) return;\n  requests.push({ kind: 'role', where: 'rol ML-temp', method: 'PUT', url: base + '/guilds/' + pend.config.guildId + '/members/' + uid + '/roles/' + pend.config.roleId, reason: 'Primera charla agendada (' + c.bookingId + ')', link: { bookingId: c.bookingId, discordUserId: uid, discordUsername: c.discordUsername } });\n});\nconst presence = listed ? pend.presenceChecks.map(function (p) { return { bookingId: p.bookingId, present: !!byId[p.discordUserId] }; }) : [];\npend.notifications.forEach(function (n) {\n  if (n.target.type === 'dm' && !dm) {\n    failed.push({ notificationId: n.id, ok: false, error: 'dm_unavailable' });\n    return;\n  }\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  requests.push({ kind: 'notification', where: n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body });\n});\nreturn [{ json: { membersListed: listed, presence: presence, requests: requests, failed: failed } }];"
       }
     },
     {
@@ -307,7 +307,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const items = $('Plan').all().map(function (i) { return i.json; });\nconst meta = items[0];\nconst links = items.filter(function (i) { return i.kind === 'role'; }).map(function (i) { return { bookingId: i.link.bookingId, discordUserId: i.link.discordUserId, roleOk: true }; });\nconst results = items.filter(function (i) { return i.kind === 'notification'; }).map(function (i) { return { notificationId: i.notificationId, ok: true }; });\nreturn [{ json: { payload: { dryRun: true, membersListed: meta.membersListed, links: links, presence: meta.presence, results: results } } }];"
+        "jsCode": "const plan = $('Plan').first().json;\nconst links = plan.requests.filter(function (r) { return r.kind === 'role'; }).map(function (r) { return { bookingId: r.link.bookingId, discordUserId: r.link.discordUserId, roleOk: true }; });\nconst results = plan.requests.filter(function (r) { return r.kind === 'notification'; }).map(function (r) { return { notificationId: r.notificationId, ok: true }; }).concat(plan.failed);\nreturn [{ json: { payload: { dryRun: true, membersListed: plan.membersListed, links: links, presence: plan.presence, results: results } } }];"
       }
     },
     {
@@ -342,7 +342,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const items = $('Plan').all().map(function (i) { return i.json; });\nconst ack = $input.first().json;\nconst plan = [];\nitems.forEach(function (i) {\n  if (i.kind === 'role') plan.push('rol ML-temp → ' + i.link.discordUsername + ' (' + i.link.discordUserId + ')');\n  if (i.kind === 'notification') plan.push(i.where + ': ' + ((i.body && i.body.content) || '(sin contenido)'));\n});\n(ack.notifications || []).forEach(function (n) {\n  plan.push('[tras el ack] ' + (n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp') + ': ' + n.content);\n});\nreturn [{ json: { dryRun: true, miembrosListados: items[0].membersListed, plan: plan, limpieza: $('Pendiente').first().json.cleaned } }];"
+        "jsCode": "const plan = $('Plan').first().json;\nconst ack = $input.first().json;\nconst lines = [];\nplan.requests.forEach(function (r) {\n  if (r.kind === 'role') lines.push('rol ML-temp → ' + r.link.discordUsername + ' (' + r.link.discordUserId + ')');\n  if (r.kind === 'notification') lines.push(r.where + ': ' + r.body.content);\n});\nplan.failed.forEach(function (f) { lines.push('[fallaria] aviso ' + f.notificationId + ': ' + f.error); });\n(ack.notifications || []).forEach(function (n) {\n  lines.push('[tras el ack] ' + (n.target.type === 'dm' ? 'DM a Yerco' : '#ml-temp') + ': ' + n.content);\n});\nreturn [{ json: { dryRun: true, miembrosListados: plan.membersListed, plan: lines, limpieza: $('Pendiente').first().json.cleaned } }];"
       }
     },
     {
@@ -410,7 +410,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const plan = $('Plan').all().map(function (i) { return i.json; });\n// Los resultados llegan en el mismo orden que la peticion (el item de control va primero).\nconst res = $input.all().map(function (i) { return i.json; });\nconst meta = plan[0];\nconst links = [];\nconst results = [];\nplan.forEach(function (p, idx) {\n  if (idx === 0) return;\n  const r = res[idx] || {};\n  const st = r.statusCode;\n  const ok = !p.skipError && st >= 200 && st < 300;\n  const err = ok ? undefined : (p.skipError || 'Discord ' + (st || 'sin respuesta'));\n  const retry = r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined;\n  if (p.kind === 'role') links.push({ bookingId: p.link.bookingId, discordUserId: p.link.discordUserId, roleOk: ok, error: err });\n  else results.push({ notificationId: p.notificationId, ok: ok, error: err, retryAfterSeconds: retry });\n});\nreturn [{ json: { payload: { dryRun: false, membersListed: meta.membersListed, links: links, presence: meta.presence, results: results } } }];"
+        "jsCode": "const plan = $('Plan').first().json;\n// Los resultados llegan en el mismo orden que los pedidos. Si no hubo pedidos, solo hay avisos fallidos que confirmar.\nconst res = $('Enviar a Discord').isExecuted ? $input.all().map(function (i) { return i.json; }) : [];\nconst links = [];\nconst results = plan.failed.slice();\nplan.requests.forEach(function (p, idx) {\n  const r = res[idx] || {};\n  const st = r.statusCode;\n  const ok = st >= 200 && st < 300;\n  const err = ok ? undefined : 'Discord ' + (st || 'sin respuesta');\n  const retry = r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined;\n  if (p.kind === 'role') links.push({ bookingId: p.link.bookingId, discordUserId: p.link.discordUserId, roleOk: ok, error: err });\n  else results.push({ notificationId: p.notificationId, ok: ok, error: err, retryAfterSeconds: retry });\n});\nreturn [{ json: { payload: { dryRun: false, membersListed: plan.membersListed, links: links, presence: plan.presence, results: results } } }];"
       }
     },
     {
@@ -445,7 +445,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const ack = $input.first().json;\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nconst base = 'https://discord.com/api/v10';\nconst SKIP = 'http://127.0.0.1:9/no-enviar';\nreturn (ack.notifications || []).map(function (n) {\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  if (n.target.type === 'dm' && !dm) {\n    return { json: { kind: 'notification', notificationId: n.id, method: 'POST', url: SKIP, body: body, skipError: 'No se pudo abrir el DM de Yerco' } };\n  }\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  return { json: { kind: 'notification', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body } };\n});"
+        "jsCode": "const ack = $input.first().json;\nlet dm = 'dry-run-dm';\nif ($('Abrir DM de Yerco').isExecuted) {\n  const d = $('Abrir DM de Yerco').first().json;\n  dm = d && d.id ? d.id : null;\n}\nconst base = 'https://discord.com/api/v10';\nconst requests = [];\nconst failed = [];\n(ack.notifications || []).forEach(function (n) {\n  if (n.target.type === 'dm' && !dm) {\n    failed.push({ notificationId: n.id, ok: false, error: 'dm_unavailable' });\n    return;\n  }\n  const body = { content: n.content, allowed_mentions: n.allowedMentions };\n  if (n.flags) body.flags = n.flags;\n  const channel = n.target.type === 'dm' ? dm : n.target.id;\n  requests.push({ kind: 'notification', notificationId: n.id, method: 'POST', url: base + '/channels/' + channel + '/messages', body: body });\n});\nreturn [{ json: { requests: requests, failed: failed } }];"
       }
     },
     {
@@ -509,7 +509,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "const sent = $('Armar fase 2').all().map(function (i) { return i.json; });\nconst res = $input.all().map(function (i) { return i.json; });\nconst results = sent.map(function (p, idx) {\n  const r = res[idx] || {};\n  const ok = !p.skipError && r.statusCode >= 200 && r.statusCode < 300;\n  return { notificationId: p.notificationId, ok: ok, error: ok ? undefined : (p.skipError || 'Discord ' + (r.statusCode || 'sin respuesta')), retryAfterSeconds: r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined };\n});\n// Este ack solo confirma envios: sin presencia real no se afirma nada (membersListed: false), asi no se encolan\n// avisos de 15 min con una presencia inventada.\nreturn [{ json: { payload: { dryRun: false, membersListed: false, links: [], presence: [], results: results } } }];"
+        "jsCode": "const p2 = $('Armar fase 2').first().json;\nconst res = $('Enviar fase 2').isExecuted ? $input.all().map(function (i) { return i.json; }) : [];\nconst results = p2.failed.slice();\np2.requests.forEach(function (p, idx) {\n  const r = res[idx] || {};\n  const ok = r.statusCode >= 200 && r.statusCode < 300;\n  results.push({ notificationId: p.notificationId, ok: ok, error: ok ? undefined : 'Discord ' + (r.statusCode || 'sin respuesta'), retryAfterSeconds: r.body && r.body.retry_after ? Math.ceil(r.body.retry_after) : undefined });\n});\nif (!results.length) return [];\n// Este ack solo confirma envios: sin presencia real no se afirma nada (membersListed: false).\nreturn [{ json: { payload: { dryRun: false, membersListed: false, links: [], presence: [], results: results } } }];"
       }
     },
     {
@@ -546,6 +546,98 @@
         "color": 4,
         "width": 520,
         "height": 200
+      }
+    },
+    {
+      "id": "1cc94c11-0d6c-4335-a907-065af5a7dc92",
+      "name": "¿Hay pedidos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1980,
+        440
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.requests.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "2d2030d6-7a18-4c6c-a9d5-e1380935eeac",
+      "name": "Pedidos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        400
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.first().json.requests.map(function (r) { return { json: r }; });"
+      }
+    },
+    {
+      "id": "e0618476-264c-4b78-9ca8-d8746f2b2818",
+      "name": "¿Hay pedidos fase 2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3300,
+        540
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.requests.length }}",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              },
+              "rightValue": 0
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "69132a54-1146-44d5-a44f-b3cc8a1ca359",
+      "name": "Pedidos fase 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        500
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "return $input.first().json.requests.map(function (r) { return { json: r }; });"
       }
     }
   ],
@@ -674,7 +766,7 @@
         ],
         [
           {
-            "node": "Enviar a Discord",
+            "node": "¿Hay pedidos?",
             "type": "main",
             "index": 0
           }
@@ -725,17 +817,6 @@
         ]
       ]
     },
-    "Armar fase 2": {
-      "main": [
-        [
-          {
-            "node": "Enviar fase 2",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Enviar fase 2": {
       "main": [
         [
@@ -763,6 +844,75 @@
         [
           {
             "node": "Armar ack 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay pedidos?": {
+      "main": [
+        [
+          {
+            "node": "Pedidos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar ack 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedidos": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Armar fase 2": {
+      "main": [
+        [
+          {
+            "node": "¿Hay pedidos fase 2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay pedidos fase 2?": {
+      "main": [
+        [
+          {
+            "node": "Pedidos fase 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Armar ack 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pedidos fase 2": {
+      "main": [
+        [
+          {
+            "node": "Enviar fase 2",
             "type": "main",
             "index": 0
           }

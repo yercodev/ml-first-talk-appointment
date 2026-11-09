@@ -111,16 +111,14 @@ main { padding-bottom: 24px; }
 .day:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Horas */
-.slots { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-@media (min-width: 560px) { .slots { grid-template-columns: repeat(3, 1fr); } }
+.slots { display: grid; gap: 8px; }
 .slot {
   min-height: 56px; padding: 8px 10px; font: inherit; color: var(--white);
   background: var(--bg); border: 1px solid var(--line); border-radius: 12px; cursor: pointer;
   display: grid; gap: 2px; align-content: center; text-align: center;
   transition: border-color 0.15s, background 0.15s;
 }
-.slot .t { font-weight: 600; font-size: 0.88rem; white-space: nowrap; }
-@media (min-width: 560px) { .slot .t { font-size: 0.98rem; } }
+.slot .t { font-weight: 600; white-space: nowrap; }
 .slot .l { font-size: 0.74rem; color: var(--steel); }
 .slot:hover:not(:disabled) { border-color: var(--blue-hi); }
 .slot[aria-pressed='true'] { background: var(--blue); border-color: var(--blue-hi); }
@@ -248,9 +246,12 @@ input[type='password'] { width: 100%; min-height: 48px; padding: 11px 13px; back
 
 /* Ajustes de movil y enlaces */
 a { color: #7fa8ff; }
-.slots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (min-width: 560px) { .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 420px) { .slot .t { font-size: 0.78rem; letter-spacing: -0.01em; } .slot { padding: 8px 6px; } }
+/* 3 columnas en todos los anchos (escenario 25) */
+.slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.slot { padding: 8px 4px; }
+.slot .t { font-size: 0.95rem; }
+.slot .l { font-size: 0.68rem; line-height: 1.25; }
+.checkline a { color: var(--white); text-decoration: underline; }
 
 /* Admin compacto: los cupos libres y bloqueados son fichas; las reservas, tarjetas */
 .chips-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
